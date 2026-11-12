@@ -1,0 +1,1 @@
+module.exports = require("../modules/catalog/catalog.service");
