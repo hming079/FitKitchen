@@ -1,7 +1,7 @@
 
 const express = require("express");
 const cors = require("cors");
-const { registerFeatureModules } = require("./modules");
+const mealModule = require("./modules/meal");
 
 const app = express();
 
@@ -16,9 +16,6 @@ app.get("/api/health", (req, res) => {
     });
 });
 
-registerFeatureModules(app);
-
-// Keep the original public endpoint while clients migrate to /api/catalog.
-app.use("/api/meals", require("./routes/meal.route"));
+app.use(mealModule.basePath, mealModule.router);
 
 module.exports = app;
