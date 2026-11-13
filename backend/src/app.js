@@ -2,6 +2,7 @@
 const express = require("express");
 const cors = require("cors");
 const mealModule = require("./modules/meal");
+const userModule = require("./modules/user");
 
 const app = express();
 
@@ -17,5 +18,6 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use(mealModule.basePath, mealModule.router);
+app.use(userModule.basePath, userModule.router);
 
 module.exports = app;
