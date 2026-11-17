@@ -1,19 +1,19 @@
 ---
 name: fitkitchen-ui
-description: Thiết kế, xây dựng hoặc chỉnh sửa frontend UI của FitKitchen theo design system dùng chung; áp dụng cho Customer và Admin, kể cả khi không có mockup.
+description: Design, build, or update FitKitchen frontend UI using the shared design system. Apply to Customer and Admin interfaces, including work without mockups.
 ---
 
-# Xây dựng UI FitKitchen
+# Build FitKitchen UI
 
-Các đường dẫn code bên dưới tính từ root repository. Skill này không cấp quyền thêm nghiệp vụ, API, dữ liệu hoặc thay đổi luồng ngoài yêu cầu.
+Code paths below are relative to the repository root. This skill does not authorize additional business logic, APIs, data, or workflow changes beyond the requested task.
 
-1. Đọc `AGENTS.md`, `frontend/AGENTS.md` và hướng dẫn có phạm vi áp dụng. Đọc [DESIGN_SYSTEM.md](../../../docs/design/DESIGN_SYSTEM.md); `frontend/src/styles.css` là nguồn giá trị token. Tôn trọng phần Lovable quản lý và các thay đổi sẵn có.
-2. Xem màn hình hiện tại hoặc màn hình tương đương gần nhất trong code và ứng dụng đang chạy. Ghi ngắn: ai dùng, tác vụ chính, thông tin cần để quyết định, hành động chính/phụ. Không tự thêm KPI, hero hay card chỉ vì thiếu mockup.
-3. Tìm bằng `rg` và tái sử dụng theo thứ tự: domain component → shared component → primitive trong `frontend/src/components/ui` → mở rộng component/variant hiện có → component mới nếu các lựa chọn trước không đáp ứng. Nêu lý do nếu tạo mới; không bọc primitive bằng abstraction chỉ đổi tên.
-4. Giữ hướng fresh, practical, food-focused: nền sáng hơi ấm, xanh lá đậm, lime có tiết chế. Customer ưu tiên món ăn, giá, calo/macros, mục tiêu và chọn món; Admin ưu tiên đọc dữ liệu, tìm kiếm, trạng thái và thao tác. Giữ font, icon library, spacing, radius và shadow trong tài liệu. Dùng đúng cặp foreground/background semantic; không dùng lime như màu trạng thái hay chữ nhỏ trên nền sáng.
-5. Liệt kê và xây các trạng thái thực sự thuộc tác vụ: mặc định, hover, keyboard focus, disabled/pending và loading/empty/error/success khi có nguồn phát sinh. Giữ nhãn input, text trạng thái, thứ tự focus, responsive và reduced-motion. Không thêm màn hình loading/error giả vào luồng đồng bộ chỉ để đủ checklist.
-6. Dùng nội dung thật của FitKitchen và nguồn dữ liệu hiện tại. Giữ `0` là `0`, thiếu dữ liệu hiển thị rõ, demo/fixture phải có nhãn khi có thể gây hiểu lầm. Không bịa trạng thái tài khoản, đơn chưa hoàn tất, rating hay nút hoạt động giả. Các ví dụ tương lai trong tài liệu không chứng minh app đã hỗ trợ chúng.
-7. Chạy các lệnh có thật trong `frontend/package.json` phù hợp thay đổi; format chỉ file đã sửa. Kiểm tra các cặp màu đã dùng, desktop/mobile, bàn phím và trạng thái liên quan trên ứng dụng render. Khi đổi token toàn cục, kiểm tra Customer, login và Admin theo mức ảnh hưởng; không sửa đăng nhập hay nghiệp vụ chỉ để trình diễn.
-8. Đọc và thực hiện [fitkitchen-ui-review](../fitkitchen-ui-review/SKILL.md) trước khi kết thúc. Sửa finding trong phạm vi; báo mức độ, bằng chứng, kiểm chứng thực tế và giới hạn. Không coi lint/build thành công là review trực quan.
+1. Read `AGENTS.md`, `frontend/AGENTS.md`, and any other applicable instructions. Read [DESIGN_SYSTEM.md](../../../docs/design/DESIGN_SYSTEM.md); `frontend/src/styles.css` is the source of token values. Respect Lovable-managed boundaries and existing changes.
+2. Inspect the current screen or its closest equivalent in both code and the running application. Briefly identify its users, primary task, information needed to decide, and primary/secondary actions. Missing mockups are not a reason to invent KPIs, heroes, or cards.
+3. Search with `rg` and reuse in this order: existing domain component → shared component → primitive in `frontend/src/components/ui` → extension of an existing component/variant → new component only if the preceding options cannot meet the need. Explain any new component; avoid wrappers that merely rename a primitive.
+4. Follow the fresh, practical, food-focused direction: slightly warm light backgrounds, deep green, and restrained lime accents. Customer UI prioritizes meals, prices, calories/macros, fitness goals, and meal selection; Admin prioritizes readable data, search, status, and actions. Keep the documented fonts, icon library, spacing, radii, and shadows. Pair semantic foreground/background tokens correctly; do not use lime as a status color or small text on a light background.
+5. Identify and implement states that actually belong to the task: default, hover, keyboard focus, disabled/pending, and loading/empty/error/success when the flow can produce them. Preserve input labels, status text, focus order, responsive behavior, and reduced-motion support. Do not add fake loading/error screens to a synchronous flow just to complete a checklist.
+6. Use FitKitchen-specific content and the existing data sources. Preserve `0` as `0`, represent missing data explicitly, and label demos/fixtures when users could mistake them for real data. Do not invent account status, unfinished orders, ratings, or working-looking actions. Future examples in documentation do not establish that the application supports those features.
+7. Run relevant commands that actually exist in `frontend/package.json`; format only changed files. Check the color pairs in use, desktop/mobile layouts, keyboard operation, and applicable states in the rendered application. When changing global tokens, inspect affected Customer, login, and Admin surfaces according to their exposure; do not modify authentication or business logic just to demonstrate the design system. Keep temporary screenshots and verification reports out of commits; report results in the PR description or response.
+8. Read and apply [fitkitchen-ui-review](../fitkitchen-ui-review/SKILL.md) before completion. Fix findings within scope; report severity, evidence, actual verification, and limitations. Passing lint/build is not a visual review.
 
-Nếu môi trường chưa tự nhận skill, yêu cầu agent đọc file này trực tiếp; không cần cài vào tài khoản cá nhân.
+If the environment does not discover this skill, ask the agent to read this file directly; no personal installation is needed.
