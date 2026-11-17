@@ -34,3 +34,9 @@ use the editor.
 - Keep storefront reads and cart mutations in dedicated browser-side modules, and derive checkout links only from Shopify Storefront API cart responses so purchase state stays real and synchronized.
 - Keep subscription selection and meal add-on estimates as clearly labeled client-side previews until real Shopify subscription and add-on products are configured; checkout must include only actual Shopify cart items.
 - Keep operations management on a separate `/admin` route, with demo records isolated from customer-facing Shopify catalog and cart flows.
+
+## UI design and review
+
+- Read [the shared design system](../docs/design/DESIGN_SYSTEM.md) before UI changes. Reuse domain/shared components, then primitives in `src/components/ui`; extend existing variants before creating a new component. Use semantic tokens rather than per-page colors or new primitives.
+- Use [fitkitchen-ui](../.agents/skills/fitkitchen-ui/SKILL.md) for implementation and [fitkitchen-ui-review](../.agents/skills/fitkitchen-ui-review/SKILL.md) before completion. If skill discovery is unavailable, read both files manually.
+- Verify the rendered UI on desktop and mobile, including applicable data/interaction states. State exactly what was observed and what remains unverified; keep demo data and unavailable actions honest.
