@@ -1,48 +1,36 @@
-# FitFuel Kitchen
+# FitKitchen frontend
 
-Build a modern React B2C e-commerce frontend for a fitness and gym meal delivery service. Use Tailwind CSS and Lucide React icons. The UI should be sporty, clean, and highly responsive.
+React/TypeScript with TanStack Router/Start, Tailwind CSS v4, existing UI primitives, React Query and Zustand. This directory owns `bun.lock`; the backend is a separate Node/Express application.
 
-Please generate the following key views and components using mock data:
+Start with the [repository development guide](../README.md) for prerequisites, environment setup, PostgreSQL, backend startup and current feature limitations.
 
-Home / Menu Page:
+## Run locally
 
-A hero section with a "Select Your Fitness Goal" toggle (Bulk, Cut, Maintain).
+From this directory, with Bun installed:
 
-A product grid displaying Meal Cards.
-
-Each Meal Card must display: Meal Image, Name, Price, and clear visual tags for Macros (Calories, Protein, Carbs, Fat). Add an "Add to Cart" button.
-
-Cart & Checkout (Slide-over or Modal):
-
-List of added items with quantity controls.
-
-Order summary (Subtotal, Shipping, Total) and a "Checkout" button.
-
-User Dashboard (Macro Tracker):
-
-A personalized section showing the user's daily macro progress.
-
-Use visual progress bars (e.g., circular or linear) to compare "Consumed Macros" (from their daily delivered orders) versus "Target Macros" for Calories, Protein, Carbs, and Fat.
-
-Ensure the design is component-based, using standard e-commerce layouts. Include a navigation bar with a Cart icon showing the item count.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/ffa43238-ee15-47b4-8f7c-2e49ded31a75).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+```bash
+bun install --frozen-lockfile
+bun run dev -- --port 5173
 ```
+
+Open http://localhost:5173. The development proxy forwards `/api` to http://127.0.0.1:3000; start the backend separately. Use Bun for dependency changes and preserve `bun.lock`.
+
+## Checks
+
+```bash
+bun run test
+bun run lint
+bunx --no-install tsc --noEmit
+bun run build
+node scripts/check-design-tokens.mjs
+```
+
+Format only changed files. Some repository-wide lint failures predate the Admin feature; do not suppress checks or change unrelated files to hide them.
+
+## Where to work
+
+- [Frontend instructions](AGENTS.md): Lovable boundaries, generated files and UI review.
+- [Routing conventions](src/routes/README.md): file-based routes and root Outlet.
+- [Design system](../docs/design/DESIGN_SYSTEM.md): semantic tokens, typography, primitives and responsive behavior. Global token values are in [src/styles.css](src/styles.css).
+
+The storefront/cart uses Shopify, while Admin Customers uses the Node/PostgreSQL API. Subscription/add-on selections remain previews until real products are configured. `/login` currently has no email/password backend integration; login and account-creation decisions belong to the account-module owner. Never expose backend signing secrets through `VITE_*` variables.

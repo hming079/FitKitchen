@@ -2,7 +2,7 @@ const pool = require("../../config/database");
 
 const userColumns = `
     id, email, full_name, phone, fitness_goal, target_calories,
-    role, created_at, updated_at
+    role, is_locked, created_at, updated_at
 `;
 
 const userFields = new Set([
@@ -10,8 +10,7 @@ const userFields = new Set([
     "full_name",
     "phone",
     "fitness_goal",
-    "target_calories",
-    "role"
+    "target_calories"
 ]);
 
 class UserService {
@@ -52,7 +51,7 @@ class UserService {
         const result = await pool.query(
             `INSERT INTO users
                 (email, password_hash, full_name, phone, fitness_goal, target_calories, role)
-             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'CUSTOMER'))
+             VALUES ($1, $2, $3, $4, $5, $6, 'CUSTOMER')
              RETURNING ${userColumns}`,
             [
                 data.email,
@@ -60,8 +59,7 @@ class UserService {
                 data.full_name,
                 data.phone || null,
                 data.fitness_goal || null,
-                data.target_calories === undefined ? null : data.target_calories,
-                data.role || null
+                data.target_calories === undefined ? null : data.target_calories
             ]
         );
         return result.rows[0];

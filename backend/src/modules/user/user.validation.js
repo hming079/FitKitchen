@@ -3,7 +3,7 @@ const roles = new Set(["CUSTOMER", "ADMIN"]);
 
 function validateId(value) {
     const id = Number(value);
-    return Number.isInteger(id) && id > 0 ? id : null;
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 function validateEmail(value) {
@@ -76,12 +76,9 @@ function validateUserPayload(payload, { partial = false } = {}) {
     }
 
     if (payload.role !== undefined) {
-        if (!roles.has(payload.role)) {
-            errors.push("role must be CUSTOMER or ADMIN");
-        } else {
-            data.role = payload.role;
-        }
+        if (partial || payload.role !== 'CUSTOMER') errors.push('role cannot be assigned or changed through this endpoint');
     }
+    if (payload.is_locked !== undefined) errors.push('Account status must be changed through the Admin endpoint');
 
     if (partial && Object.keys(data).length === 0 && errors.length === 0) {
         errors.push("At least one writable field is required");
