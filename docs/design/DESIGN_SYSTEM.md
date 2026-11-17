@@ -6,7 +6,7 @@ FitKitchen provides meals for fitness goals: Cut, Bulk, and Maintain. Customer U
 
 The current application also displays FitFuel/BepFit names; this document does not change the logo or brand identity. Read the [root instructions](../../AGENTS.md) and [frontend/AGENTS.md](../../frontend/AGENTS.md), especially the Lovable boundaries, before making changes.
 
-Sources of truth: [styles.css](../../frontend/src/styles.css) for tokens and [components/ui](../../frontend/src/components/ui) for primitives. Apply this standard incrementally; existing screens are not all compliant. The reference implementation is `/admin` → Customers: six demo records and local search, without a customer-management API, account locking/unlocking, or customer history.
+Sources of truth: [styles.css](../../frontend/src/styles.css) for tokens and [components/ui](../../frontend/src/components/ui) for primitives. Apply this standard incrementally; existing screens are not all compliant. The reference implementation is `/admin` → Customers: a guarded, API-backed directory with search, status filtering, pagination, customer history and audited lock/unlock actions. See [Admin integration and demo setup](../ADMIN_CUSTOMERS.md) for the current JWT/login boundary and database fixtures.
 
 ## Semantic colors
 
@@ -25,7 +25,7 @@ CSS color values must use `oklch()`. Do not copy HEX values or token values into
 | Success                       | `bg-success-muted`                                      | `text-success`                    | Completed/active **when confirmed by data**                                                 |
 | Warning                       | `bg-warning-muted`                                      | `text-warning`                    | Attention needed, such as unfinished orders                                                 |
 | Subtle error/destructive      | `bg-destructive-muted`                                  | `text-destructive`                | Errors or a confirmed locked account                                                        |
-| Information                   | `bg-info-muted`                                         | `text-info`                       | Supporting information; Customers uses a demo note                                          |
+| Information                   | `bg-info-muted`                                         | `text-info`                       | Supporting information and clearly labeled preview notes                                    |
 | Solid status                  | `bg-success`, `bg-warning`, `bg-info`, `bg-destructive` | `text-<status>-foreground`        | Always use the matching pair; destructive actions use `Button variant="destructive"`        |
 | Grouping border               | `border-border`                                         | —                                 | Subtle separators; insufficient as the sole input-identification cue                        |
 | Control border                | `border-input`                                          | —                                 | Stronger than the grouping border so controls are recognizable                              |
@@ -61,6 +61,8 @@ Use existing Tailwind breakpoints: `sm` 640, `md` 768, `lg` 1024, and `xl` 1280.
 
 Check at least desktop and 320–390px mobile layouts; include tablet/200% zoom when layout is affected. Use 16px mobile inputs, prioritize controls ≥44px high, and provide targets of at least 24px with adequate spacing. Keep decision-critical information visible. Forms need associated labels and field errors; asynchronous states use `role="status"`/`alert` according to urgency. Static notes should not be live alerts. Preserve heading hierarchy, table captions/column headers, and list labels when needed. Check Tab, Enter/Space, Escape, and focus restoration for relevant dialogs/menus. Motion should be brief and support interaction; use `motion-reduce`/`motion-safe` for nonessential movement.
 
+The Admin shell shares navigation content between a persistent sidebar at `lg` and a mobile `Sheet` below it. The Sheet traps focus, closes with Escape or section selection, restores focus to its trigger, and dismisses when the viewport switches to desktop. Shared Dialog/Sheet animations run only with `prefers-reduced-motion: no-preference`. Test customer names up to 150 characters and long email addresses: flex/grid children must shrink and wrap without horizontal page or dialog overflow.
+
 ## Components and extensions
 
 Reuse in this order: **domain → shared → primitive → extend an existing component → create only when missing**. Read implementations/props before use. A wrapper that only renames something is not a useful abstraction. Semantic native elements such as `section`, `dl`, and `ul` do not require their own components.
@@ -79,15 +81,15 @@ Reuse in this order: **domain → shared → primitive → extend an existing co
 | `Skeleton`, `Progress`, `sonner`                   | Real loading/progress/toasts; do not replace persistent field errors with a transient toast.                                                                                                                                                                                   |
 | `DropdownMenu`, `Tooltip`, `Popover`, `Pagination` | Infrequent actions, supplementary explanations, floating content, and actual data pagination. Tooltips must not hide essential information.                                                                                                                                    |
 
-Existing domain/shared components in `frontend/src/components` include `MealCard`, `DemoMealCard`, `MealCustomizationDialog`, `CartDrawer`, `StoreHeader`, and `SubscriptionPlans`. They preserve Shopify catalog/cart behavior and preview conventions; do not duplicate them for new pages. `admin/CustomerDirectory` composes presentation from rows/query/callback props; search and fixtures remain owned by the Admin route. Legacy Admin helpers `Panel`, `DataTable`, `SearchBox`, and `Modal` remain local to `admin.tsx`; these are legacy implementations rather than the primitives to use on new screens. Migrate them incrementally when an authorized task touches their scope instead of reproducing them elsewhere.
+Existing domain/shared components in `frontend/src/components` include `MealCard`, `DemoMealCard`, `MealCustomizationDialog`, `CartDrawer`, `StoreHeader`, and `SubscriptionPlans`. They preserve Shopify catalog/cart behavior and preview conventions; do not duplicate them for new pages. `admin/CustomerDirectory` owns the customer search/filter/page state and server queries. `CustomerDetails` and `CustomerStatusDialog` compose independent history reads and reason/confirmation handling using shared primitives; account state comes from the backend. Legacy Admin helpers `Panel`, `DataTable`, `SearchBox`, and `Modal` remain local to `admin.tsx`; these are legacy implementations rather than the primitives to use on new screens. Migrate them incrementally when an authorized task touches their scope instead of reproducing them elsewhere.
 
 ### States
 
-Show loading only while work is actually pending; preserve content placement and provide a readable status. Distinguish an empty dataset from unmatched search and offer an appropriate recovery step without inventing numbers. Errors explain what failed and how to retry when retry behavior exists; success requires confirmed completion. Do not turn missing data into `0` or `0` into “—”. Explain unavailable actions when users need to understand why, and do not invent actions just to demonstrate disabled states. Customers is currently synchronous/read-only, so its relevant states are list, filtering, and empty results rather than fabricated network loading/errors.
+Show loading only while work is actually pending; preserve content placement and provide a readable status. Distinguish an empty dataset from unmatched search and offer an appropriate recovery step without inventing numbers. Errors explain what failed and how to retry when retry behavior exists; success requires confirmed completion. Do not turn missing data into `0` or `0` into “—”. Explain unavailable actions when users need to understand why, and do not invent actions just to demonstrate disabled states. Customers uses asynchronous reads and mutations, so its states include loading, filtered/empty results, independently recoverable history errors, and pending/success/error account changes. Unfinished-order warnings and confirmations come from server checks.
 
 ## FitKitchen examples
 
-The account/order/locking snippets below **illustrate design-system usage only**. They are not features or data present in Customers. Do not copy them into the route and assign statuses to the existing fixtures. Connect them only to sources implemented in a future, authorized business-feature task.
+The snippets below illustrate design-system usage. Customers now connects account statuses and unfinished-order warnings to the backend; continue to source these values from actual responses rather than assigning them to unrelated fixtures.
 
 ```tsx
 // Example statuses when the data source actually provides account status.
@@ -99,12 +101,12 @@ The account/order/locking snippets below **illustrate design-system usage only**
   <AlertDescription>This customer has unfinished orders. Review them before locking the account.</AlertDescription>
 </Alert>
 
-// Visual/disabled example; this task provides no account-lock handler.
-// A real implementation needs AlertDialog, the customer/consequences, cancel, and pending/error states.
+// Visual/disabled example. The implemented flow uses Dialog, the customer and
+// consequences, a reason, explicit unfinished-order confirmation and pending/error states.
 <Button variant="destructive" disabled>Lock account</Button>
 ```
 
-For the actual directory/empty state, see [CustomerDirectory](../../frontend/src/components/admin/customer-directory.tsx). Search has a label, counts preserve `0`, and empty results explain how to search again. Only name, email, phone, and goal come from the existing fixture. The inactive more-options button and decorative goal pills were removed without inventing status/history fields.
+For the actual directory/empty state, see [CustomerDirectory](../../frontend/src/components/admin/customer-directory.tsx). Search and filtering have labels, counts preserve `0`, and empty/error results provide recovery. Contact details, goals and account statuses come from the customer API. Details and status actions use shared Dialog focus management; they preserve address/order/plan empty states and require a reason for account changes.
 
 Customer UI should reuse `MealCard`/`DemoMealCard` with sourced meal images, names, prices, Cut/Bulk/Maintain goals, calories in `kcal`, and protein/carbs/fat in `g`. Use readable text for values and muted foreground for metadata; reserve badges for meaningful status. This example illustrates rendering; `meal` must come from existing data:
 
