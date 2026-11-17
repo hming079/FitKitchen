@@ -82,49 +82,12 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
         return { status: response.status, body: response.status === 204 ? null : await response.json() };
     }
     const change = (id, body) => request(`/admin/customers/${id}/status`, adminToken, 'PATCH', body);
-    await t.test('internal provisioning creates real Admin accounts without JWT, but requires its own local access key', async () => {
-        const key = crypto.randomBytes(48).toString('hex');
-        const password = crypto.randomBytes(16).toString('hex');
-        const payload = { email: 'admin1@fitkitchen.example.test', full_name: 'Internal administrator', password };
-        async function provision(body = payload, suppliedKey = key) {
-            const response = await fetch(base + '/api/internal/admins', { method: 'POST', headers: {
-                'Content-Type': 'application/json', ...(suppliedKey ? { 'X-Admin-Provisioning-Key': suppliedKey } : {})
-            }, body: JSON.stringify(body) });
-            return { status: response.status, body: await response.json() };
-        }
-        try {
-            process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED = 'false';
-            process.env.ADMIN_PROVISIONING_KEY = key;
-            assert.equal((await provision()).status, 404);
-            process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED = 'true';
-            for (const suppliedKey of ['', 'wrong-key']) assert.equal((await provision(payload, suppliedKey)).status, 403);
-            assert.equal((await provision({ ...payload, role: 'ADMIN' })).status, 400);
-            assert.equal((await provision({ ...payload, password: 'short' })).status, 400);
-            const created = await provision();
-            assert.equal(created.status, 201);
-            assert.equal(created.body.data.role, 'ADMIN');
-            assert.equal(created.body.data.is_locked, false);
-            assert.equal('password_hash' in created.body.data, false);
-            const saved = (await pool.query('SELECT password_hash FROM users WHERE id = $1', [created.body.data.id])).rows[0];
-            const [, salt, encoded] = saved.password_hash.split(':');
-            const derived = await new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, (error, key) => error ? reject(error) : resolve(key)));
-            assert.equal(derived.toString('hex'), encoded);
-            assert.equal((await request('/admin/customers', token(created.body.data.id))).status, 200);
-            const issued = execFileSync(process.execPath, ['scripts/demo-token.js', payload.email], { cwd: path.join(__dirname, '../..'), env: process.env, encoding: 'utf8' }).trim();
-            assert.equal(jwt.verify(issued, process.env.JWT_SECRET, { algorithms: ['HS256'], issuer: 'fitkitchen', audience: 'fitkitchen-api' }).sub, created.body.data.id);
-            assert.equal((await request('/admin/customers', issued)).status, 200);
-            assert.equal((await provision()).status, 409);
-            assert.equal((await provision({ ...payload, email: active.email })).status, 409);
-            assert.equal((await pool.query('SELECT role FROM users WHERE id=$1', [active.id])).rows[0].role, 'CUSTOMER');
-            assert.equal((await provision({ ...payload, email: 'second-admin@example.test' })).status, 201);
-            const previous = process.env.NODE_ENV;
-            process.env.NODE_ENV = 'production';
-            try { assert.equal((await provision()).status, 404); }
-            finally { if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous; }
-        } finally {
-            delete process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED;
-            delete process.env.ADMIN_PROVISIONING_KEY;
-        }
+    await t.test('internal Admin account creation is not exposed', async () => {
+        const response = await fetch(base + '/api/internal/admins', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'not-created@example.test', password: 'not-created', full_name: 'Not created' })
+        });
+        assert.equal(response.status, 404);
     });
     const auditCount = async id => (await pool.query('SELECT COUNT(*)::int AS n FROM admin_account_audit WHERE customer_id = $1', [id])).rows[0].n;
 

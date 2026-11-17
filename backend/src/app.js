@@ -4,7 +4,6 @@ const cors = require("cors");
 const mealModule = require("./modules/meal");
 const userModule = require("./modules/user");
 const adminModule = require("./modules/admin");
-const provisioning = require("./modules/admin/provisioning");
 const { authenticate } = require("./middleware/auth");
 
 const app = express();
@@ -23,7 +22,6 @@ app.get("/api/health", (req, res) => {
 app.use(mealModule.basePath, mealModule.router);
 app.use(userModule.basePath, userModule.router);
 app.use(adminModule.basePath, adminModule.router);
-app.use(provisioning.basePath, provisioning.router);
 app.get('/api/session', authenticate, (req, res) => res.json({ success: true, data: req.user }));
 
 app.use((error, req, res, next) => {

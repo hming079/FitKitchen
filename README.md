@@ -9,7 +9,6 @@ FitKitchen is a fitness meal delivery project with a customer storefront and a s
 | Customer menu/cart         | Shopify Storefront API reads and cart operations. Sample meals are labeled previews; subscription/add-on selections are estimates until actual products are configured. |
 | Admin Customers            | PostgreSQL-backed search, status filtering, pagination, profiles/addresses, order history, current plans, and audited lock/unlock.                                      |
 | Authorization              | JWT verification, database-backed ADMIN/CUSTOMER roles, account-lock enforcement, and user/address ownership checks.                                                    |
-| Admin account creation     | Local internal provisioning with a separate access key; disabled by default and in production.                                                                          |
 | Email/password login       | **Not implemented yet.** `/login` is a visual preview. Admin records and JWT fixtures do not replace a real login flow.                                                 |
 | Other Admin tabs/dashboard | Existing demo/preview screens; do not treat their local data or actions as PostgreSQL operations.                                                                       |
 
@@ -35,7 +34,7 @@ frontend/
   src/test/                  Vitest tests
 ```
 
-Read [AGENTS.md](AGENTS.md) and [frontend/AGENTS.md](frontend/AGENTS.md) before contributing. Feature details: [Admin API/demo guide](docs/ADMIN_CUSTOMERS.md), [login integration handoff](docs/AUTH_INTEGRATION.md), [design system](docs/design/DESIGN_SYSTEM.md), and [routing conventions](frontend/src/routes/README.md).
+Read [AGENTS.md](AGENTS.md) and [frontend/AGENTS.md](frontend/AGENTS.md) before contributing. See the [design system](docs/design/DESIGN_SYSTEM.md) and [routing conventions](frontend/src/routes/README.md).
 
 ## Local development
 
@@ -64,16 +63,14 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 Edit `backend/.env` before starting the backend:
 
-| Variable                              | Local setting / purpose                                                                            |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                        | `postgresql://admin:admin123@localhost:5433/eatclean_db` for the included Compose service          |
-| `PORT`                                | `3000`                                                                                             |
-| `JWT_SECRET`                          | Your generated secret, at least 32 characters; never commit it or put it in frontend configuration |
-| `JWT_ISSUER` / `JWT_AUDIENCE`         | `fitkitchen` / `fitkitchen-api`; the future login issuer must use the same values                  |
-| `CORS_ORIGINS`                        | `http://localhost:5173,http://127.0.0.1:5173`                                                      |
-| `ADMIN_DEMO_PASSWORD`                 | Optional local seed password, at least 12 characters                                               |
-| `INTERNAL_ADMIN_PROVISIONING_ENABLED` | Keep `false` except while provisioning local Admins                                                |
-| `ADMIN_PROVISIONING_KEY`              | Separate random key, at least 32 characters, only needed for provisioning                          |
+| Variable                      | Local setting / purpose                                                                            |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                | `postgresql://admin:admin123@localhost:5433/eatclean_db` for the included Compose service          |
+| `PORT`                        | `3000`                                                                                             |
+| `JWT_SECRET`                  | Your generated secret, at least 32 characters; never commit it or put it in frontend configuration |
+| `JWT_ISSUER` / `JWT_AUDIENCE` | `fitkitchen` / `fitkitchen-api`; the future login issuer must use the same values                  |
+| `CORS_ORIGINS`                | `http://localhost:5173,http://127.0.0.1:5173`                                                      |
+| `ADMIN_DEMO_PASSWORD`         | Optional local seed password, at least 12 characters                                               |
 
 Configuration precedence is **process environment → `backend/.env` → repository-root `.env` for missing keys**. A key present but empty in `backend/.env` also takes precedence over the root file. Avoid conflicting duplicate settings and restart the backend after changing configuration. Environment files are gitignored.
 
@@ -119,7 +116,7 @@ bun run dev -- --port 5173
 
 Open **http://localhost:5173**. The Vite development proxy forwards `/api` to **http://127.0.0.1:3000**. If you change the backend port, update that proxy target. For a separately hosted API, configure `VITE_API_BASE_URL` to its trusted origin before building and allow the frontend origin in backend `CORS_ORIGINS`.
 
-Use one browser origin consistently: `localhost:5173` and `127.0.0.1:5173` have different sessionStorage. No JWT signing secret, provisioning key or password belongs in a `VITE_*` variable.
+Use one browser origin consistently: `localhost:5173` and `127.0.0.1:5173` have different sessionStorage. No JWT signing secret or password belongs in a `VITE_*` variable.
 
 ## Test the Admin workspace before real login exists
 
@@ -144,29 +141,7 @@ location.assign("/admin");
 
 The JWT fixture expires in 30 minutes. Backend signature, expiry, issuer/audience, current database role and lock checks still run. This is **not email/password authentication**.
 
-### Internally provisioned Admin path
-
-The optional `POST /api/internal/admins` route creates accounts with real password hashes; it does not log them in. It requires a loopback connection and a separate provisioning key, and must not be published through a reverse proxy. See the [provisioning instructions](docs/ADMIN_CUSTOMERS.md#internal-admin-account-provisioning), then disable provisioning after use.
-
-If you created `admin1@fitkitchen.example.test` or `admin2@fitkitchen.example.test`, you can issue a temporary session with:
-
-```bash
-cd backend
-node scripts/demo-token.js admin1@fitkitchen.example.test
-```
-
-Use the same browser-console step above. These accounts/passwords are machine-local data, not bundled credentials; teammates must seed or provision their own accounts. Older bootstrap strings such as `hashed_pass_admin` are placeholders, not valid login hashes.
-
-## Handoff for the login implementation
-
-Read [AUTH_INTEGRATION.md](docs/AUTH_INTEGRATION.md) before changing auth. The main coordination points are:
-
-- Reuse the existing scrypt hash format and implement password verification in the same security module. Preserve existing Admin and Customer hashes.
-- Issue HS256 JWTs with string user ID `sub`, numeric `exp`, and matching issuer/audience/secret. No login endpoint name or login-response field is defined yet.
-- Keep one authentication middleware. Every protected request must read the current database role and lock state; token/client role claims never grant access.
-- Registration creates CUSTOMER only. Keep the existing ownership guards on profiles/addresses and role guards on Admin and meal mutations.
-- Connect successful login to `setAccessToken(token)`, then read `/api/session` for the current identity/role. The Admin toggle on the preview login page does not grant access.
-- Coordinate any cookie/refresh-token/revocation design before changing the current Bearer/sessionStorage contract. Client sign-out currently clears browser state; it does not revoke an issued JWT.
+Login, registration and account-creation decisions belong to the teammate implementing the account module. The current JWT fixture is only for local verification of Admin functionality; coordinate integration with that teammate instead of adding a parallel account-creation or login flow.
 
 ## Checks
 
@@ -201,7 +176,6 @@ Run Prettier only on changed files, for example `bunx --no-install prettier --ch
 | PostgreSQL connection refused                                      | Start the Compose service, wait for health, and check host port 5433 / `DATABASE_URL`.                                                          |
 | Missing `is_locked` or audit table                                 | Run `npm run db:migrate` against the configured database.                                                                                       |
 | Admin access denied                                                | Check the browser origin/token, token expiry and database role/lock state. `/login` is not connected yet.                                       |
-| Internal provisioning returns 404                                  | Disabled, missing/short provisioning key, or production environment; it is disabled intentionally by default.                                   |
 | API 401 / 403                                                      | 401 means missing/invalid/expired session; 403 `FORBIDDEN` means insufficient role/ownership; 403 `ACCOUNT_LOCKED` means the account is locked. |
 | Port 3000/5173 is occupied                                         | Stop the previous dev process, or configure matching frontend/backend ports.                                                                    |
 | Shopify menu/checkout is unavailable                               | Shopify is separate from PostgreSQL Admin data. Check the Storefront response; labeled sample meals are previews, not real cart items.          |

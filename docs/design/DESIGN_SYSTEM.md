@@ -6,7 +6,7 @@ FitKitchen provides meals for fitness goals: Cut, Bulk, and Maintain. Customer U
 
 The current application also displays FitFuel/BepFit names; this document does not change the logo or brand identity. Read the [root instructions](../../AGENTS.md) and [frontend/AGENTS.md](../../frontend/AGENTS.md), especially the Lovable boundaries, before making changes.
 
-Sources of truth: [styles.css](../../frontend/src/styles.css) for tokens and [components/ui](../../frontend/src/components/ui) for primitives. Apply this standard incrementally; existing screens are not all compliant. The reference implementation is `/admin` → Customers: a guarded, API-backed directory with search, status filtering, pagination, customer history and audited lock/unlock actions. See [Admin integration and demo setup](../ADMIN_CUSTOMERS.md) for the current JWT/login boundary and database fixtures.
+Sources of truth: [styles.css](../../frontend/src/styles.css) for tokens and [components/ui](../../frontend/src/components/ui) for primitives. Apply this standard incrementally; existing screens are not all compliant. The reference implementation is `/admin` → Customers: a guarded, API-backed directory with search, status filtering, pagination, customer history and audited lock/unlock actions. See the [development README](../../README.md) for the current feature boundaries and local setup.
 
 ## Semantic colors
 

@@ -2,7 +2,6 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateStatus, parseListQuery } = require('../src/modules/admin/customer.validation');
 const { requireRole, requireSelf } = require('../src/middleware/auth');
-const { internalAccess } = require('../src/modules/admin/provisioning');
 
 function response() {
     return { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(body) { this.body = body; return this; } };
@@ -37,22 +36,4 @@ test('role guard fails closed and ownership never trusts the requested user ID',
     const res = response();
     requireSelf('userId')({ user: { id: '1', role: 'CUSTOMER' }, params: { userId: '2' } }, res, () => assert.fail('must deny'));
     assert.equal(res.statusCode, 403);
-});
-
-test('internal provisioning does not trust forwarded loopback addresses or JWT credentials', () => {
-    const previousEnabled = process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED;
-    const previousKey = process.env.ADMIN_PROVISIONING_KEY;
-    process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED = 'true';
-    process.env.ADMIN_PROVISIONING_KEY = 'x'.repeat(48);
-    try {
-        const res = response();
-        internalAccess({ socket: { remoteAddress: '203.0.113.5' }, get: header => header === 'X-Admin-Provisioning-Key' ? 'x'.repeat(48) : '127.0.0.1' }, res, () => assert.fail('remote peer must be denied'));
-        assert.equal(res.statusCode, 403);
-        const missing = response();
-        internalAccess({ socket: { remoteAddress: '127.0.0.1' }, get: () => undefined }, missing, () => assert.fail('key required'));
-        assert.equal(missing.statusCode, 403);
-    } finally {
-        if (previousEnabled === undefined) delete process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED; else process.env.INTERNAL_ADMIN_PROVISIONING_ENABLED = previousEnabled;
-        if (previousKey === undefined) delete process.env.ADMIN_PROVISIONING_KEY; else process.env.ADMIN_PROVISIONING_KEY = previousKey;
-    }
 });

@@ -32,7 +32,5 @@ Format only changed files. Some repository-wide lint failures predate the Admin 
 - [Frontend instructions](AGENTS.md): Lovable boundaries, generated files and UI review.
 - [Routing conventions](src/routes/README.md): file-based routes and root Outlet.
 - [Design system](../docs/design/DESIGN_SYSTEM.md): semantic tokens, typography, primitives and responsive behavior. Global token values are in [src/styles.css](src/styles.css).
-- [Login integration handoff](../docs/AUTH_INTEGRATION.md): JWT/account checks, password format and the temporary session-storage bridge in `src/lib/admin-api.ts`.
-- [Admin API and demo guide](../docs/ADMIN_CUSTOMERS.md): API contracts, fixture setup and account actions.
 
-The storefront/cart uses Shopify, while Admin Customers uses the Node/PostgreSQL API. Subscription/add-on selections remain previews until real products are configured. `/login` currently has no email/password backend integration; provisioning an Admin account does not implement login. Never expose backend signing secrets or provisioning keys through `VITE_*` variables.
+The storefront/cart uses Shopify, while Admin Customers uses the Node/PostgreSQL API. Subscription/add-on selections remain previews until real products are configured. `/login` currently has no email/password backend integration; login and account-creation decisions belong to the account-module owner. Never expose backend signing secrets through `VITE_*` variables.
