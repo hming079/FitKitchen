@@ -17,6 +17,9 @@ function validationError(res, errors) {
 }
 
 function handleDatabaseError(res, error) {
+    if (error.code === "23503") {
+        return res.status(409).json({ success: false, message: "Account has retained related records and cannot be deleted" });
+    }
     if (error.code === "23505") {
         return res.status(409).json({
             success: false,
