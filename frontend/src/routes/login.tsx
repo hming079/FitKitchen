@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,17 +25,13 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const navigate = useNavigate();
   const [admin, setAdmin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (admin) {
-      void navigate({ to: "/admin" });
-      return;
-    }
+
     setMessage("Sign in is a visual preview. Account authentication is not connected yet.");
   }
 
@@ -102,7 +98,7 @@ function LoginPage() {
               </h2>
               <p className="mt-2 text-xs text-muted-foreground">
                 {admin
-                  ? "Continue to your kitchen operations preview."
+                  ? "Administrator access requires a verified account session."
                   : "Sign in to keep your good-food routine going."}
               </p>
             </div>
@@ -173,7 +169,7 @@ function LoginPage() {
                 type="submit"
                 className="h-11 w-full justify-center gap-2 rounded-sm bg-lime text-sm font-bold text-foreground hover:bg-lime/90"
               >
-                {admin ? "Continue to admin" : "Sign in"}
+                {admin ? "Sign in" : "Sign in"}
                 <ArrowRight size={15} />
               </Button>
             </form>

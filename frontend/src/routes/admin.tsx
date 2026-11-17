@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CustomerDirectory } from "@/components/admin/customer-directory";
+import { AdminAccess } from "@/components/admin/admin-access";
+import { AdminMobileNavigation } from "@/components/admin/admin-mobile-navigation";
+import { setAccessToken, type Session } from "@/lib/admin-api";
+import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -20,7 +24,6 @@ import {
   Flame,
   LayoutDashboard,
   Leaf,
-  Menu,
   Plus,
   Search,
   Settings2,
@@ -42,7 +45,7 @@ export const Route = createFileRoute("/admin")({
       { name: "description", content: "FitFuel Kitchen operations dashboard demo." },
     ],
   }),
-  component: AdminPage,
+  component: AdminRoute,
 });
 
 type View = "Overview" | "Orders" | "Meals" | "Promotions" | "Customers" | "Subscriptions";
@@ -56,7 +59,8 @@ const nav: { name: View; icon: typeof LayoutDashboard; count?: string }[] = [
   { name: "Customers", icon: Users },
   { name: "Subscriptions", icon: Boxes },
 ];
-const customers = [
+// Fixtures for the pre-existing delivery preview only. Customers uses the backend.
+const demoCustomers = [
   {
     name: "Linh Nguyen",
     email: "linh.nguyen@email.com",
@@ -117,15 +121,18 @@ const weekly = [
 ];
 type Meal = DemoMeal;
 
-function AdminPage() {
-  const [view, setView] = useState<View>("Overview");
-  const [orders, setOrders] = useState<(DemoOrder & { status: Status })[]>(
+function AdminRoute() {
+  return <AdminAccess>{(user) => <AdminPage key={user.id} user={user} />}</AdminAccess>;
+}
+
+function AdminPage({ user }: { user: Session }) {
+  const [view, setView] = useState<View>("Customers");
+  const [orders, setOrders] = useState<(Omit<DemoOrder, "status"> & { status: Status })[]>(
     demoOrders.map((o) => ({ ...o, status: o.status as Status })),
   );
   const [meals, setMeals] = useState<Meal[]>(demoMeals);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [addMeal, setAddMeal] = useState(false);
-  const [mobileNav, setMobileNav] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [range, setRange] = useState("This week");
@@ -138,9 +145,6 @@ function AdminPage() {
   });
   const filteredOrders = orders.filter((o) =>
     `${o.id} ${o.customer}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  const filteredCustomers = customers.filter((c) =>
-    `${c.name} ${c.email} ${c.phone}`.toLowerCase().includes(query.toLowerCase()),
   );
   const selected = orders.find((order) => order.id === selectedOrder);
   const setStatus = (id: string, status: Status) =>
@@ -160,7 +164,7 @@ function AdminPage() {
       protein: Number(newMeal.protein),
       carbs: 0,
       fat: 0,
-      image: demoMeals[0].image,
+      image: demoMeals[0]?.image ?? "",
     };
     setMeals((all) => [...all, item]);
     setNewMeal({ title: "", price: "", type: "Meal", calories: "", protein: "" });
@@ -168,164 +172,169 @@ function AdminPage() {
     toast("Meal added to the demo menu");
   };
 
-  return (
-    <div className="admin-shell min-h-screen bg-background text-[#1d2922]">
-      <aside
-        className={`${mobileNav ? "translate-x-0" : "-translate-x-full"} admin-sidebar fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-[#e9ede7] bg-white transition-transform duration-200 lg:translate-x-0`}
-      >
-        <div className="flex h-[76px] items-center gap-3 px-6">
-          <div className="grid size-9 place-items-center rounded-sm bg-[#dff2b2] text-[#345628]">
-            <Leaf size={19} />
-          </div>
-          <div>
-            <div className="font-display text-[17px] font-bold tracking-[-.04em]">
-              bepfit<span className="text-[#91bd54]">.</span>
-            </div>
-            <div className="text-[14px] font-semibold uppercase tracking-[.17em] text-[#9aa49b]">
-              Kitchen operations
-            </div>
-          </div>
-          <button
-            aria-label="Close navigation"
-            className="ml-auto lg:hidden"
-            onClick={() => setMobileNav(false)}
-          >
-            <X size={18} />
-          </button>
+  const selectView = (nextView: View) => {
+    setView(nextView);
+    setQuery("");
+  };
+  const sidebar = (onNavigate: (nextView: View) => void) => (
+    <>
+      <div className="flex h-[76px] shrink-0 items-center gap-3 pl-6 pr-16 lg:pr-6">
+        <div className="grid size-9 place-items-center rounded-sm bg-secondary text-muted-foreground">
+          <Leaf size={19} />
         </div>
-        <div className="px-4 pt-6">
-          <div className="mb-2 px-3 text-[14px] font-bold uppercase tracking-[.16em] text-[#a4ada5]">
-            Workspace
+        <div>
+          <div className="font-display text-[17px] font-bold tracking-[-.04em]">
+            bepfit<span className="text-muted-foreground">.</span>
           </div>
-          <nav className="space-y-1" aria-label="Admin navigation">
-            {nav.map(({ name, icon: Icon, count }) => (
-              <button
-                key={name}
-                onClick={() => {
-                  setView(name);
-                  setMobileNav(false);
-                  setQuery("");
-                }}
-                className={`group flex h-10 w-full items-center gap-3 rounded-sm px-3 text-left text-[13px] font-medium transition-colors ${view === name ? "bg-lime text-foreground" : "text-[#737e75] hover:bg-[#f5f7f3] hover:text-[#344138]"}`}
-              >
-                <Icon size={17} strokeWidth={1.8} />
-                <span>{name}</span>
-                {count && (
-                  <span className="ml-auto rounded-md bg-white px-1.5 py-0.5 text-[14px] text-[#7b867c]">
-                    {count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-        <div className="mt-8 px-4">
-          <div className="mb-2 px-3 text-[14px] font-bold uppercase tracking-[.16em] text-[#a4ada5]">
-            Workspace
+          <div className="text-[14px] font-semibold uppercase tracking-[.17em] text-muted-foreground">
+            Kitchen operations
           </div>
-          <button
-            onClick={() => toast("Settings are part of the connected admin rollout")}
-            className="flex h-10 w-full items-center gap-3 rounded-sm px-3 text-[13px] font-medium text-[#737e75] hover:bg-[#f5f7f3]"
-          >
-            <Settings2 size={17} strokeWidth={1.8} /> Settings
-          </button>
         </div>
-        <div className="mt-auto px-4 pb-4">
-          <div className="mb-4 rounded-sm border border-[#e9ede7] bg-[#fafbf8] p-3">
+      </div>
+      <div className="px-4 pt-6">
+        <div className="mb-2 px-3 text-[14px] font-bold uppercase tracking-[.16em] text-muted-foreground">
+          Workspace
+        </div>
+        <nav className="space-y-1" aria-label="Admin navigation">
+          {nav.map(({ name, icon: Icon, count }) => (
+            <button
+              key={name}
+              onClick={() => {
+                onNavigate(name);
+              }}
+              className={`group flex h-10 w-full items-center gap-3 rounded-sm px-3 text-left text-[13px] font-medium transition-colors ${view === name ? "bg-brand-highlight text-brand-highlight-foreground" : "text-muted-foreground hover:bg-secondary hover:text-muted-foreground"}`}
+            >
+              <Icon size={17} strokeWidth={1.8} />
+              <span>{name}</span>
+              {count && view !== "Customers" && (
+                <span className="ml-auto rounded-md bg-card px-1.5 py-0.5 text-[14px] text-muted-foreground">
+                  {count}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
+      <div className="mt-8 px-4">
+        <div className="mb-2 px-3 text-[14px] font-bold uppercase tracking-[.16em] text-muted-foreground">
+          Workspace
+        </div>
+        <button
+          onClick={() => toast("Settings are part of the connected admin rollout")}
+          className="flex h-10 w-full items-center gap-3 rounded-sm px-3 text-[13px] font-medium text-muted-foreground hover:bg-secondary"
+        >
+          <Settings2 size={17} strokeWidth={1.8} /> Settings
+        </button>
+      </div>
+      <div className="mt-auto px-4 pb-4">
+        {view !== "Customers" && (
+          <div className="mb-4 rounded-sm border border-border bg-secondary p-3">
             <div className="mb-2 flex items-center gap-2">
-              <span className="grid size-7 place-items-center rounded-sm bg-[#edf5e3] text-[#668e4a]">
+              <span className="grid size-7 place-items-center rounded-sm bg-secondary text-muted-foreground">
                 <Sparkles size={14} />
               </span>
               <span className="text-[13px] font-semibold">Kitchen tip</span>
             </div>
-            <p className="text-[13px] leading-relaxed text-[#858e86]">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               Saturday orders are up 18%. Prep extra protein bowls.
             </p>
           </div>
-          <div className="flex items-center gap-3 border-t border-[#edf0eb] pt-4">
-            <div className="grid size-9 place-items-center rounded-full bg-[#e9eee3] text-xs font-bold text-[#566b4b]">
-              JL
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold">Jamie Lee</div>
-              <div className="text-[14px] text-[#929b93]">Kitchen admin</div>
-            </div>
-            <Ellipsis size={17} className="text-[#9ba39b]" />
+        )}
+        <div className="flex items-center gap-3 border-t border-border pt-4">
+          <div className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-bold text-muted-foreground">
+            {user.full_name.slice(0, 2).toUpperCase()}
           </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold">{user.full_name}</div>
+            <div className="text-[14px] text-muted-foreground">Kitchen admin</div>
+          </div>
+          <Ellipsis size={17} className="text-muted-foreground" />
         </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="admin-shell min-h-screen bg-background text-foreground">
+      <aside className="admin-sidebar fixed inset-y-0 left-0 z-40 hidden w-[252px] flex-col border-r border-border bg-card lg:flex">
+        {sidebar(selectView)}
       </aside>
-      {mobileNav && (
-        <button
-          aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-black/25 lg:hidden"
-          onClick={() => setMobileNav(false)}
-        />
-      )}
       <div className="lg:pl-[252px]">
-        <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-[#e9ede7] bg-white/95 px-4 backdrop-blur sm:px-7 lg:px-9">
+        <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur sm:px-7 lg:px-9">
           <div className="flex items-center gap-3">
-            <button
-              aria-label="Open navigation"
-              className="rounded-sm p-2 hover:bg-[#f4f6f2] lg:hidden"
-              onClick={() => setMobileNav(true)}
-            >
-              <Menu size={19} />
-            </button>
-            <div className="hidden items-center gap-2 text-[13px] text-[#9ba49b] sm:flex">
+            <AdminMobileNavigation>
+              {(close) =>
+                sidebar((nextView) => {
+                  selectView(nextView);
+                  close();
+                })
+              }
+            </AdminMobileNavigation>
+            <div className="hidden items-center gap-2 text-[13px] text-muted-foreground sm:flex">
               <span>Kitchen</span>
               <ChevronRight size={13} />
-              <span className="font-medium text-[#455249]">{view}</span>
+              <span className="font-medium text-muted-foreground">{view}</span>
             </div>
             <div className="sm:hidden text-sm font-semibold">{view}</div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden items-center gap-2 rounded-sm border border-[#edf0eb] bg-[#fafbf9] px-3 py-2 text-[13px] text-[#737e75] md:flex">
-              <Command size={13} />
-              <span>⌘ K</span>
-              <span className="text-[#a2aaa3]">Quick search</span>
-            </div>
-            <button
-              className="relative rounded-sm p-2 text-[#6f7a70] hover:bg-[#f5f7f3]"
-              aria-label="Notifications"
-              onClick={() => toast("You’re all caught up")}
-            >
-              <Bell size={18} />
-              <i className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-[#ef876b]" />
-            </button>
-            <div className="hidden h-7 border-l border-[#e9ede7] sm:block" />
-            <span className="hidden text-[13px] text-[#7d887e] sm:inline">Mon, 16 Nov</span>
-            <div className="grid size-8 place-items-center rounded-full bg-[#e9eee3] text-[14px] font-bold text-[#566b4b]">
-              JL
+            {view !== "Customers" && (
+              <>
+                <div className="hidden items-center gap-2 rounded-sm border border-border bg-secondary px-3 py-2 text-[13px] text-muted-foreground md:flex">
+                  <Command size={13} />
+                  <span>⌘ K</span>
+                  <span className="text-muted-foreground">Quick search</span>
+                </div>
+                <button
+                  className="relative rounded-sm p-2 text-muted-foreground hover:bg-secondary"
+                  aria-label="Notifications"
+                  onClick={() => toast("You’re all caught up")}
+                >
+                  <Bell size={18} />
+                  <i className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-secondary" />
+                </button>
+                <div className="hidden h-7 border-l border-border sm:block" />
+                <span className="hidden text-[13px] text-muted-foreground sm:inline">
+                  Mon, 16 Nov
+                </span>
+              </>
+            )}
+            <div className="grid size-8 place-items-center rounded-full bg-secondary text-[14px] font-bold text-muted-foreground">
+              {user.full_name.slice(0, 2).toUpperCase()}
             </div>
           </div>
         </header>
         <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-7 sm:py-8 lg:px-9">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold uppercase tracking-[.15em] text-[#91a092]">
-                <span className="size-1.5 rounded-full bg-[#94bd64]" /> Monday, November 16, 2026
-              </div>
+              {view !== "Customers" && (
+                <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold uppercase tracking-[.15em] text-muted-foreground">
+                  <span className="size-1.5 rounded-full bg-secondary" /> Monday, November 16, 2026
+                </div>
+              )}
               <h1 className="font-display text-[26px] font-semibold tracking-[-.045em] sm:text-[30px]">
-                {view === "Overview" ? "Good morning, Jamie" : view}
+                {view === "Overview" ? "Operations preview" : view}
               </h1>
-              <p className="mt-1 text-[14px] text-[#8b958c]">
+              <p className="mt-1 text-[14px] text-muted-foreground">
                 {view === "Overview"
                   ? "Here’s what’s happening in your kitchen today."
                   : descriptions[view]}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => toast("Report exported from demo data")}
-                className="flex h-9 items-center gap-2 rounded-sm border border-[#e5eae3] bg-white px-3 text-[13px] font-medium text-[#5f6b61] shadow-sm hover:bg-[#fafbf9]"
-              >
-                <Download size={14} /> <span className="hidden sm:inline">Export report</span>
-                <span className="sm:hidden">Export</span>
-              </button>
+              {view !== "Customers" && (
+                <button
+                  onClick={() => toast("Report exported from demo data")}
+                  className="flex h-9 items-center gap-2 rounded-sm border border-border bg-card px-3 text-[13px] font-medium text-muted-foreground shadow-sm hover:bg-secondary"
+                >
+                  <Download size={14} /> <span className="hidden sm:inline">Export report</span>
+                  <span className="sm:hidden">Export</span>
+                </button>
+              )}
               {view === "Meals" && (
                 <button
                   onClick={() => setAddMeal(true)}
-                  className="flex h-9 items-center gap-2 rounded-sm bg-lime px-3 text-[13px] font-semibold text-foreground hover:bg-[#d5ed6c]"
+                  className="flex h-9 items-center gap-2 rounded-sm bg-lime px-3 text-[13px] font-semibold text-foreground hover:bg-secondary"
                 >
                   <Plus size={15} /> Add new meal
                 </button>
@@ -369,15 +378,13 @@ function AdminPage() {
               <Promotions />
             </Panel>
           )}
-          {view === "Customers" && (
-            <CustomerDirectory rows={filteredCustomers} query={query} onQueryChange={setQuery} />
-          )}
+          {view === "Customers" && <CustomerDirectory />}
           {view === "Subscriptions" && <Subscriptions />}
-          <div className="mt-6 flex items-center justify-between text-[14px] text-[#a2aaa3]">
-            <span>© 2026 BepFit Kitchen · Operations preview</span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-[#8fbb62]" /> All systems operational
-            </span>
+          <div className="mt-6 flex items-center justify-between text-[14px] text-muted-foreground">
+            <span>© 2026 FitKitchen · Other tabs use demo data</span>
+            <Button variant="ghost" onClick={() => setAccessToken(null)}>
+              Sign out
+            </Button>
           </div>
         </main>
       </div>
@@ -445,11 +452,11 @@ function AdminPage() {
                 />
               </Field>
             </div>
-            <div className="flex justify-end gap-2 border-t border-[#edf0eb] pt-4">
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
               <button
                 type="button"
                 onClick={() => setAddMeal(false)}
-                className="rounded-sm border border-[#e5eae3] px-4 py-2 text-xs font-medium text-[#5f6b61]"
+                className="rounded-sm border border-border px-4 py-2 text-xs font-medium text-muted-foreground"
               >
                 Cancel
               </button>
@@ -467,10 +474,10 @@ function AdminPage() {
           onClose={() => setSelectedOrder(null)}
         >
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-sm bg-[#f7f9f5] p-3">
+            <div className="flex items-center justify-between rounded-sm bg-secondary p-3">
               <div>
                 <div className="text-xs font-semibold">{selected.customer}</div>
-                <div className="mt-1 text-[14px] text-[#929b93]">
+                <div className="mt-1 text-[14px] text-muted-foreground">
                   Ordered Nov 16 · {selected.slot}
                 </div>
               </div>
@@ -483,7 +490,7 @@ function AdminPage() {
                 </span>
                 <b>{formatUsd(12)}</b>
               </div>
-              <div className="ml-2 border-l-2 border-[#e5eddd] pl-3 text-[14px] leading-5 text-[#818c82]">
+              <div className="ml-2 border-l-2 border-border pl-3 text-[14px] leading-5 text-muted-foreground">
                 Upsize: Large portion (+$2)
                 <br />
                 Toppings: Avocado, extra broccoli
@@ -494,19 +501,19 @@ function AdminPage() {
                 </span>
                 <b>{formatUsd(8.5)}</b>
               </div>
-              <div className="ml-2 border-l-2 border-[#e5eddd] pl-3 text-[14px] leading-5 text-[#818c82]">
+              <div className="ml-2 border-l-2 border-border pl-3 text-[14px] leading-5 text-muted-foreground">
                 Upsize: Regular
                 <br />
                 Toppings: Sesame crunch, chili oil
               </div>
             </div>
-            <div className="flex justify-between border-t border-[#edf0eb] pt-3 text-sm font-bold">
+            <div className="flex justify-between border-t border-border pt-3 text-sm font-bold">
               <span>Total</span>
               <span>{formatUsd(selected.total)}</span>
             </div>
             <button
               onClick={() => setSelectedOrder(null)}
-              className="w-full rounded-sm bg-[#375a38] py-2.5 text-xs font-semibold text-white"
+              className="w-full rounded-sm bg-secondary py-2.5 text-xs font-semibold text-primary-foreground"
             >
               Done
             </button>
@@ -516,9 +523,9 @@ function AdminPage() {
       {notice && (
         <div
           role="status"
-          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-sm bg-[#263b2b] px-4 py-3 text-xs font-medium text-white shadow-xl"
+          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-sm bg-primary px-4 py-3 text-xs font-medium text-primary-foreground shadow-xl"
         >
-          <Check size={15} className="text-[#b9de91]" />
+          <Check size={15} className="text-muted-foreground" />
           {notice}
         </div>
       )}
@@ -531,7 +538,7 @@ const descriptions: Record<View, string> = {
   Orders: "Review orders, delivery windows and fulfillment progress.",
   Meals: "Manage menu items and their nutritional information.",
   Promotions: "Manage discounts and seasonal offers.",
-  Customers: "Find customer contacts and fitness goals.",
+  Customers: "Find customers, review their history and manage account access.",
   Subscriptions: "Plan upcoming deliveries for your meal subscribers.",
 };
 
@@ -541,7 +548,7 @@ function Overview({
   range,
   onRange,
 }: {
-  orders: (DemoOrder & { status: Status })[];
+  orders: (Omit<DemoOrder, "status"> & { status: Status })[];
   onOrders: () => void;
   range: string;
   onRange: (v: string) => void;
@@ -852,7 +859,7 @@ function OrdersTable({
   onStatus,
   onView,
 }: {
-  orders: (DemoOrder & { status: Status })[];
+  orders: (Omit<DemoOrder, "status"> & { status: Status })[];
   onStatus: (id: string, status: Status) => void;
   onView: (id: string) => void;
 }) {
@@ -1022,7 +1029,7 @@ function Promotions() {
 function Subscriptions() {
   const subscriptions = [
     {
-      customer: customers[0],
+      customer: demoCustomers[0]!,
       package: "Lean & Green · 5 days",
       meals: ["Teriyaki chicken", "Salmon power bowl", "Turkey meatballs"],
       date: "Nov 17, 2026",
@@ -1030,7 +1037,7 @@ function Subscriptions() {
       status: "Preparing",
     },
     {
-      customer: customers[1],
+      customer: demoCustomers[1]!,
       package: "Muscle Builder · 7 days",
       meals: ["Steak & sweet potato", "Chicken pesto pasta", "Beef bulgogi"],
       date: "Nov 17, 2026",
@@ -1038,7 +1045,7 @@ function Subscriptions() {
       status: "Preparing",
     },
     {
-      customer: customers[2],
+      customer: demoCustomers[2]!,
       package: "Balanced Week · 5 days",
       meals: ["Miso salmon", "Citrus chicken bowl", "Tofu grain bowl"],
       date: "Nov 18, 2026",
@@ -1046,7 +1053,7 @@ function Subscriptions() {
       status: "Scheduled",
     },
     {
-      customer: customers[3],
+      customer: demoCustomers[3]!,
       package: "Lean & Green · 3 days",
       meals: ["Lemon herb chicken", "Korean beef bowl", "Harvest tofu"],
       date: "Nov 18, 2026",
