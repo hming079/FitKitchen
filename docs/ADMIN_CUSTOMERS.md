@@ -19,20 +19,9 @@ The UI composes the existing directory, semantic tokens, Button, Input, Select, 
 
 ## Authentication integration contract
 
-`src/middleware/auth.js` verifies `Authorization: Bearer <token>` using `jsonwebtoken`. Configure a random `JWT_SECRET` of at least 32 characters; no fallback secret exists. The provisional contract is **HS256**, string `sub` containing the PostgreSQL user ID, required numeric `exp`, issuer `JWT_ISSUER` (default `fitkitchen`), and audience `JWT_AUDIENCE` (default `fitkitchen-api`). Verification restricts algorithms, issuer and audience according to the [library's verification documentation](https://github.com/auth0/node-jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback).
+The current JWT, password-hash, route-ownership and frontend session contracts are documented in the [login integration handoff](AUTH_INTEGRATION.md). Reuse `src/middleware/auth.js` and the account module's existing scrypt format; the verifier reads role and lock state from PostgreSQL on every protected request. Registration cannot assign ADMIN, and account locks reject existing unexpired tokens on the next request.
 
-Each authenticated request queries `users` and sets `req.user = { id, full_name, role, is_locked }`. Token/body/header role or status claims never grant authority. A missing user is rejected; a locked account is rejected on its **next request even with an unexpired token**. An unlocked account can reuse an otherwise valid token. `requireRole('ADMIN')` runs after `authenticate`.
-
-Coordinate these points with the account-module owner:
-
-1. Issue tokens with the above claims/configuration, or adapt this single verifier to the team's chosen signing contract. Do not keep two verifier implementations.
-2. Reuse this database account check on every future authenticated router, including order/subscription APIs when those exist. There are currently no such routers in this branch.
-3. Keep registration Customer-only. `POST /api/users` remains public, accepts ordinary profile fields and password, and always creates `CUSTOMER`. `role: ADMIN`, `is_locked`, and role changes through profile PATCH are rejected with 400.
-4. `GET /api/users` is Admin-only. Profile GET/PATCH and all address CRUD require the authenticated account's own path ID, including for Admins. Admin customer support reads use `/api/admin/customers/:id`. User DELETE and meal POST/PATCH/DELETE are Admin-only. Public meal GET routes remain public.
-5. Frontend login should call `setAccessToken(token)` from `src/lib/admin-api.ts`, then navigate normally. It currently uses a temporary **sessionStorage** slot, `fitkitchen.access-token`; the API adapter is the single token reader. Replace that adapter if the account module chooses a different storage or cookie contract. Browser storage is accessible to same-origin scripts; it is not an HttpOnly cookie.
-6. The `/admin` guard checks `/api/session`, rechecks on focus/periodically, and hides the workspace on expired/locked sessions or insufficient role. Backend enforcement is independent. Invalid sessions clear Admin query data. The login preview's Admin switch grants no access and does not navigate into the workspace.
-
-Email/password login and password verification against a real account module **remain unverified and unavailable**. The CLI fixture below proves signed JWT verification and RBAC, not the missing login flow.
+**Email/password login is not implemented in this branch.** The local provisioning endpoint creates database accounts, while CLI fixtures exercise signed JWT verification/RBAC. Neither provides the missing runtime login flow. The account-module owner must integrate real token issuance and the frontend storage/identity contract before password-authenticated end-to-end behavior can be claimed.
 
 ## Database setup and migration
 
