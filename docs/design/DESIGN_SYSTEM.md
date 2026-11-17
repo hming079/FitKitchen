@@ -1,126 +1,126 @@
 # FitKitchen design system
 
-## Phạm vi và sản phẩm
+## Product and scope
 
-FitKitchen cung cấp suất ăn theo mục tiêu tập luyện: Cut, Bulk, Maintain. Customer UI giúp xem món, giá, calo/macros, chọn món, đặt hàng và theo dõi gói/thông tin cá nhân. Admin giúp người vận hành tìm dữ liệu, đọc trạng thái và thực hiện tác vụ chính xác. Customer có thể ưu tiên ảnh món; Admin ưu tiên mật độ thông tin, bảng, tìm kiếm và thao tác. Cả hai dùng cùng nền tảng **fresh, practical, food-focused**: xanh đậm, nền sáng hơi ấm, lime vừa phải, bố cục rõ ràng.
+FitKitchen provides meals for fitness goals: Cut, Bulk, and Maintain. Customer UI helps people browse meals, understand prices and calories/macros, select meals, place orders, and track plans and personal information. Admin helps operators find data, read statuses, and act accurately. Customer screens may emphasize food photography; Admin prioritizes information density, tables, search, and actions. Both share a **fresh, practical, food-focused** foundation: deep green, slightly warm light backgrounds, restrained lime accents, and clear layouts.
 
-Code hiện hiển thị cả tên FitFuel/BepFit; tài liệu này không đổi logo hay nhận diện. Đọc [hướng dẫn root](../../AGENTS.md) và [frontend/AGENTS.md](../../frontend/AGENTS.md), đặc biệt phần Lovable, trước khi sửa.
+The current application also displays FitFuel/BepFit names; this document does not change the logo or brand identity. Read the [root instructions](../../AGENTS.md) and [frontend/AGENTS.md](../../frontend/AGENTS.md), especially the Lovable boundaries, before making changes.
 
-Nguồn sự thật: [styles.css](../../frontend/src/styles.css) cho token, [components/ui](../../frontend/src/components/ui) cho primitive. Đây là chuẩn để áp dụng dần, không phải tuyên bố mọi trang cũ đã tuân thủ. Phạm vi tham chiếu là `/admin` → Customers: 6 bản ghi demo và tìm kiếm cục bộ, không có API quản lý khách, khóa/mở tài khoản hoặc lịch sử khách hàng.
+Sources of truth: [styles.css](../../frontend/src/styles.css) for tokens and [components/ui](../../frontend/src/components/ui) for primitives. Apply this standard incrementally; existing screens are not all compliant. The reference implementation is `/admin` → Customers: six demo records and local search, without a customer-management API, account locking/unlocking, or customer history.
 
-## Màu semantic
+## Semantic colors
 
-Giá trị CSS phải là `oklch()`. Không sao chép HEX hay giá trị token vào component. Các màu nền/chữ/primary/secondary/muted/lime hiện có đã gần hướng màu được chọn nên được giữ để giảm ảnh hưởng toàn cục. `lime` là alias tương thích của `brand-highlight`; code mới dùng tên semantic và đúng foreground. Không đổi màu theo từng trang.
+CSS color values must use `oklch()`. Do not copy HEX values or token values into components. Existing background/foreground/primary/secondary/muted/lime colors already approximate the chosen direction and are retained to limit global impact. `lime` is a compatibility alias for `brand-highlight`; new code should use semantic names with the correct foreground. Do not choose a new palette for each page.
 
-| Vai trò               | Utility nền                                             | Utility chữ tương ứng             | Cách dùng                                                                                 |
-| --------------------- | ------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| Nền trang sáng hơi ấm | `bg-background`                                         | `text-foreground`                 | Nội dung chính, layout Customer/Admin                                                     |
-| Bề mặt độc lập        | `bg-card`                                               | `text-card-foreground`            | Món ăn, danh sách có ranh giới cần thiết                                                  |
-| Lớp nổi               | `bg-popover`                                            | `text-popover-foreground`         | Select/popover/menu                                                                       |
-| Action chính          | `bg-primary`                                            | `text-primary-foreground`         | `Button` default; tối đa một mức ưu tiên chính trong một vùng                             |
-| Bề mặt phụ            | `bg-secondary`                                          | `text-secondary-foreground`       | Vùng hỗ trợ, action phụ                                                                   |
-| Bề mặt giảm nhấn      | `bg-muted`                                              | `text-muted-foreground`           | Header bảng, metadata đọc được; nội dung chính vẫn dùng foreground                        |
-| Tương tác nhẹ         | `bg-accent`                                             | `text-accent-foreground`          | Hover/selection của primitive, không dùng thay trạng thái nghiệp vụ                       |
-| Nhấn thương hiệu      | `bg-brand-highlight`                                    | `text-brand-highlight-foreground` | Lime có tiết chế; không dùng chữ trắng, không dùng lime làm chữ nhỏ trên nền sáng         |
-| Success               | `bg-success-muted`                                      | `text-success`                    | Hoàn tất/đang hoạt động **khi có dữ liệu xác nhận**                                       |
-| Warning               | `bg-warning-muted`                                      | `text-warning`                    | Cần lưu ý, ví dụ đơn chưa hoàn tất                                                        |
-| Error/destructive dịu | `bg-destructive-muted`                                  | `text-destructive`                | Lỗi hoặc tài khoản đã khóa có nguồn xác nhận                                              |
-| Info                  | `bg-info-muted`                                         | `text-info`                       | Thông tin hỗ trợ; Customers dùng note demo                                                |
-| Trạng thái đặc        | `bg-success`, `bg-warning`, `bg-info`, `bg-destructive` | `text-<status>-foreground`        | Luôn ghép đúng cặp; destructive action dùng `Button variant="destructive"`                |
-| Viền phân nhóm        | `border-border`                                         | —                                 | Separator nhẹ, không đủ làm tín hiệu duy nhất nhận biết input                             |
-| Viền control          | `border-input`                                          | —                                 | Đậm hơn border để nhận ra control                                                         |
-| Focus                 | `ring-ring` + offset                                    | —                                 | Button/Input có ring 2px, offset 2px nền background; luôn xem focus render trong ngữ cảnh |
+| Role                          | Background utility                                      | Matching text utility             | Usage                                                                                       |
+| ----------------------------- | ------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
+| Slightly warm page background | `bg-background`                                         | `text-foreground`                 | Main content and Customer/Admin layouts                                                     |
+| Independent surface           | `bg-card`                                               | `text-card-foreground`            | Meals and directories that need a boundary                                                  |
+| Floating surface              | `bg-popover`                                            | `text-popover-foreground`         | Select, popover, and menu content                                                           |
+| Primary action                | `bg-primary`                                            | `text-primary-foreground`         | Default `Button`; one primary emphasis per region                                           |
+| Secondary surface             | `bg-secondary`                                          | `text-secondary-foreground`       | Supporting regions and secondary actions                                                    |
+| Muted surface                 | `bg-muted`                                              | `text-muted-foreground`           | Table headers and readable metadata; main content still uses foreground                     |
+| Subtle interaction            | `bg-accent`                                             | `text-accent-foreground`          | Primitive hover/selection, not business status                                              |
+| Brand highlight               | `bg-brand-highlight`                                    | `text-brand-highlight-foreground` | Restrained lime; avoid white text or small lime text on light backgrounds                   |
+| Success                       | `bg-success-muted`                                      | `text-success`                    | Completed/active **when confirmed by data**                                                 |
+| Warning                       | `bg-warning-muted`                                      | `text-warning`                    | Attention needed, such as unfinished orders                                                 |
+| Subtle error/destructive      | `bg-destructive-muted`                                  | `text-destructive`                | Errors or a confirmed locked account                                                        |
+| Information                   | `bg-info-muted`                                         | `text-info`                       | Supporting information; Customers uses a demo note                                          |
+| Solid status                  | `bg-success`, `bg-warning`, `bg-info`, `bg-destructive` | `text-<status>-foreground`        | Always use the matching pair; destructive actions use `Button variant="destructive"`        |
+| Grouping border               | `border-border`                                         | —                                 | Subtle separators; insufficient as the sole input-identification cue                        |
+| Control border                | `border-input`                                          | —                                 | Stronger than the grouping border so controls are recognizable                              |
+| Focus                         | `ring-ring` + offset                                    | —                                 | Button/Input use a 2px ring with a 2px background offset; inspect rendered focus in context |
 
-`coral`, `fresh`, `lime`, chart/sidebar tokens được giữ tương thích. Coral/fresh/lime là màu thương hiệu cũ, **không thay thế** success/warning/info/destructive và không mặc nhiên đạt tương phản cho chữ nhỏ. Sidebar/chart hiện có chưa được chuyển đổi toàn bộ. Thay đổi màu toàn cục trong đợt này giới hạn ở destructive, input, ring; token brand giữ màu cũ và thêm tên theo vai trò.
+`coral`, `fresh`, `lime`, and chart/sidebar tokens remain for compatibility. Legacy coral/fresh/lime brand colors **do not replace** success/warning/info/destructive and do not automatically provide sufficient contrast for small text. Existing chart/sidebar implementations have not been fully migrated. Global color adjustments in this change are limited to destructive, input, and ring; brand values are retained with additional role-based names.
 
-### Thêm token và kiểm tra tương phản
+### Adding tokens and checking contrast
 
-1. Tìm token tương đương trước. Nếu thiếu vai trò thực sự, thêm biến tại `:root` và `.dark` trong `styles.css`.
-2. Đăng ký `--color-<role>: var(--<role>)` trong `@theme inline` để sinh `bg-*`, `text-*`, `border-*`; xem [Tailwind theme variables](https://tailwindcss.com/docs/theme).
-3. Kiểm tra foreground trên background, cả surface phụ, hover, disabled và focus. Văn bản thường mục tiêu ≥4.5:1 theo [WCAG contrast minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html); tín hiệu control/focus cần ≥3:1 với màu kề theo [non-text contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html). Không dùng màu làm tín hiệu duy nhất: thêm text/nhãn phù hợp.
-4. Chạy script tương phản được ghi ở phần kiểm chứng, rồi kiểm tra trình duyệt; opacity, ảnh và nền pha trộn cần đo riêng. Token đạt không đồng nghĩa mọi tổ hợp utility đạt.
+1. Look for an equivalent token first. If a role is missing, add variables to both `:root` and `.dark` in `styles.css`.
+2. Register `--color-<role>: var(--<role>)` in `@theme inline` to provide `bg-*`, `text-*`, and `border-*`; see [Tailwind theme variables](https://tailwindcss.com/docs/theme).
+3. Check foreground/background pairs, including secondary surfaces, hover, disabled, and focus. Target ≥4.5:1 for ordinary text under [WCAG contrast minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html); meaningful control/focus cues need ≥3:1 against adjacent colors under [non-text contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html). Add text or another appropriate cue rather than communicating status through color alone.
+4. Run the contrast script described under verification, then inspect the browser. Opacity, images, and blended backgrounds require separate measurements. Passing token pairs do not establish that every utility combination passes.
 
-### Light và dark
+### Light and dark
 
-Light là giao diện mặc định; `.dark` hiện có đổi biến và Tailwind dark variant. Token mới có giá trị dark, status dùng chữ sáng trên nền dịu tối, solid status dùng foreground tối. `brand-highlight-foreground` luôn tối để đọc trên lime cả hai theme. Không thêm theme switcher. Có thể thử `.dark` bằng fixture/local browser; không lưu tùy chọn hay thay luồng người dùng để demo.
+Light is the default interface. Existing `.dark` variables and the Tailwind dark variant support alternate values. New dark status tokens use light text on muted dark surfaces and dark foregrounds on solid status colors. `brand-highlight-foreground` stays dark so text remains readable on lime in both themes. No theme switcher is added. Test `.dark` with local fixtures/browser tooling rather than adding persistent preferences or changing user workflows for a demonstration.
 
-Chưa xem toàn bộ website trong dark: code cũ còn `bg-white`, màu hard-code và `bg-lime text-foreground` có thể không phù hợp khi foreground đổi sáng. Không tuyên bố dark mode đã hoàn thiện; kiểm tra các màn hình bị ảnh hưởng trước khi mở hỗ trợ toàn app.
+The whole website has not been reviewed in dark mode: legacy `bg-white`, hard-coded colors, and `bg-lime text-foreground` may become unsuitable when foreground turns light. Do not claim complete dark-mode support; inspect affected screens before enabling it application-wide.
 
-## Typography, spacing và bề mặt
+## Typography, spacing, and surfaces
 
-- **DM Sans / `font-sans`:** body, bảng, form, nhãn và button. **Space Grotesk / `font-display`:** heading trang hoặc tên món. Font được tải qua `<link>` trong `src/routes/__root.tsx`; giữ fallback sans-serif, không import font remote trong CSS hay thêm font mới.
-- Ưu tiên `text-base` (16px) cho body/mobile input, `text-sm` (14px) cho bảng và nội dung hỗ trợ, `text-xs` (12px) cho metadata ngắn; không thu chữ thông tin chính để nhét thêm dữ liệu. Heading vùng `text-base font-semibold`; heading trang thường `text-2xl`/`text-3xl font-display`. Dùng `leading-relaxed` cho đoạn dài, `tabular-nums` cho số cần so sánh.
-- Dùng scale Tailwind hiện có (đơn vị cơ sở 4px): 1/2/3/4/5/6/8/10/12 = 4/8/12/16/20/24/32/40/48px. Thường gap 2–3 trong nhóm, 4–6 giữa nhóm, 6–8 giữa section; gutter 4 mobile, 6–8 màn rộng. Không tạo scale riêng từng trang. Giá trị layout đặc thù (cột sidebar, aspect ratio) phải có lý do.
-- `--radius` hiện 0.625rem; `rounded-sm/md/lg` dựa trên token tương ứng 6/8/10px. Dùng `rounded-lg` cho vùng dữ liệu, `rounded-md` primitive. `rounded-full` chỉ khi hình dạng có ý nghĩa (avatar, toggle), không biến mọi metadata thành pill.
-- Border mảnh 1px; ưu tiên spacing/alignment hơn thêm box. Dùng shadow sẵn trong primitive; không thêm shadow cho từng row/section. Dialog/popover cần elevation, danh sách thông thường không cần.
-- Icon library duy nhất đang dùng: `lucide-react`, stroke mặc định. Ưu tiên 16px cạnh text, 20px cho navigation/action, 24px khi có lý do. Icon-only action phải có accessible name; SVG trang trí `aria-hidden`. Không tự động thêm icon nền tròn vào heading/KPI.
+- **DM Sans / `font-sans`:** body, tables, forms, labels, and buttons. **Space Grotesk / `font-display`:** page headings or meal names. Fonts load through a `<link>` in `src/routes/__root.tsx`; preserve sans-serif fallbacks and avoid remote CSS font imports or new font families.
+- Prefer `text-base` (16px) for body/mobile inputs, `text-sm` (14px) for tables/supporting content, and `text-xs` (12px) for short metadata. Do not shrink essential information to fit more fields. Region headings use `text-base font-semibold`; page headings commonly use `text-2xl`/`text-3xl font-display`. Use `leading-relaxed` for longer text and `tabular-nums` for comparable numbers.
+- Use the existing Tailwind scale with a 4px base: 1/2/3/4/5/6/8/10/12 = 4/8/12/16/20/24/32/40/48px. Typical gaps are 2–3 within a group, 4–6 between groups, and 6–8 between sections; gutters are 4 on mobile and 6–8 on wider screens. Do not create a per-page scale. Specialized layout values, such as sidebar columns or aspect ratios, need a reason.
+- `--radius` is currently 0.625rem; token-based `rounded-sm/md/lg` correspond to 6/8/10px. Use `rounded-lg` for data regions and `rounded-md` for primitives. Reserve `rounded-full` for meaningful shapes such as avatars/toggles, rather than turning all metadata into pills.
+- Use thin 1px borders and prefer spacing/alignment over extra boxes. Keep existing primitive shadows; avoid shadows on every row/section. Dialogs/popovers need elevation; ordinary lists usually do not.
+- The existing icon library is `lucide-react`, using its default stroke. Prefer 16px beside text, 20px for navigation/actions, and 24px when justified. Icon-only actions need accessible names; decorative SVGs use `aria-hidden`. Do not automatically put heading/KPI icons inside colored circles.
 
-## Responsive và accessibility baseline
+## Responsive and accessibility baseline
 
-Dùng breakpoint Tailwind hiện có (`sm` 640, `md` 768, `lg` 1024, `xl` 1280). Chọn thứ tự thông tin theo tác vụ trên mobile; không chỉ xếp dọc desktop. Customers dùng bảng từ `md`, danh sách contact có nhãn dưới `md`; tên và goal trước email/phone, giữ đủ dữ liệu. Bảng đối chiếu thật sự cần ngang có thể cuộn trong vùng riêng, không làm tràn trang.
+Use existing Tailwind breakpoints: `sm` 640, `md` 768, `lg` 1024, and `xl` 1280. Prioritize information according to the mobile task instead of merely stacking desktop content. Customers uses a table from `md` and a labeled contact list below it; name and fitness goal precede email/phone, while all information remains available. Comparison tables that need horizontal space may scroll within their own region without overflowing the page.
 
-Kiểm tra tối thiểu desktop và mobile 320–390px; thêm tablet/zoom 200% khi ảnh hưởng layout. Input mobile dùng 16px, control ưu tiên cao ≥44px, target tối thiểu 24px và khoảng cách đủ. Không ẩn thông tin quyết định để tiết kiệm chỗ. Form có label liên kết, lỗi gắn với field, trạng thái bất đồng bộ có `role="status"`/`alert` đúng mức khẩn. Note tĩnh không dùng alert sống. Heading theo thứ bậc, table có caption/column headers, list có nhãn khi cần. Kiểm tra Tab, Enter/Space, Escape và focus trở về trigger cho dialog/menu thực sự liên quan. Motion ngắn, chỉ phục vụ interaction; dùng `motion-reduce`/`motion-safe` khi có chuyển động không thiết yếu.
+Check at least desktop and 320–390px mobile layouts; include tablet/200% zoom when layout is affected. Use 16px mobile inputs, prioritize controls ≥44px high, and provide targets of at least 24px with adequate spacing. Keep decision-critical information visible. Forms need associated labels and field errors; asynchronous states use `role="status"`/`alert` according to urgency. Static notes should not be live alerts. Preserve heading hierarchy, table captions/column headers, and list labels when needed. Check Tab, Enter/Space, Escape, and focus restoration for relevant dialogs/menus. Motion should be brief and support interaction; use `motion-reduce`/`motion-safe` for nonessential movement.
 
-## Component và mở rộng
+## Components and extensions
 
-Tìm theo thứ tự: **domain → shared → primitive → mở rộng component hiện có → tạo mới nếu thiếu**. Đọc implementation/props trước khi dùng. Một wrapper chỉ đổi tên không phải abstraction cần thiết. Native element đúng ngữ nghĩa như `section`, `dl`, `ul` không cần một component riêng.
+Reuse in this order: **domain → shared → primitive → extend an existing component → create only when missing**. Read implementations/props before use. A wrapper that only renames something is not a useful abstraction. Semantic native elements such as `section`, `dl`, and `ul` do not require their own components.
 
-| Primitive có sẵn trong `frontend/src/components/ui` | Khi dùng / lưu ý                                                                                                                                                                                                                                            |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                            | default cho action chính; outline/secondary cho phụ; ghost cho nhẹ; link cho điều hướng dạng text; destructive cho thao tác rủi ro ở ngữ cảnh phù hợp. Giữ disabled/pending thật, text cụ thể.                                                              |
-| `Input`, `Textarea`, `Label`, `Form`                | Form có nhãn và hướng dẫn/lỗi theo field. Không tự dựng control mất focus chỉ để có style khác.                                                                                                                                                             |
-| `Select`, `Checkbox`, `RadioGroup`, `Switch`        | Chọn một từ danh sách; nhiều lựa chọn; một trong ít lựa chọn; bật/tắt ngay. Không thay checkbox bằng pill không có ngữ nghĩa.                                                                                                                               |
-| `Dialog`, `AlertDialog`, `Sheet`                    | Chi tiết/tác vụ tập trung; xác nhận hậu quả; panel ở mép/mobile nav. Dùng focus management của primitive, không tự vẽ modal.                                                                                                                                |
-| `Table` + subcomponents                             | Dữ liệu cần so cột; caption mô tả và header có scope; không tạo thêm DataTable engine cho một danh sách đơn giản.                                                                                                                                           |
-| `Tabs`                                              | Chuyển giữa các panel đồng cấp trong cùng tác vụ, không thay navigation URL khi cần route.                                                                                                                                                                  |
-| `Badge`                                             | Trạng thái ngắn: default/secondary/outline/destructive, thêm success/warning/info. Badge tĩnh không phải nút, luôn có text, không gắn mọi metadata vào badge.                                                                                               |
-| `Card` + subcomponents                              | Một đối tượng/nhóm độc lập; không cần dùng card nếu section + spacing đủ rõ.                                                                                                                                                                                |
-| `Alert` + description/title                         | Thông báo ảnh hưởng quyết định: default/destructive và success/warning/info. Mặc định `role="alert"`; note tĩnh override `role="note"`, thông báo kết quả không khẩn cân nhắc `role="status"`. Dùng title khi cần, không thêm heading h5 nếu phá hierarchy. |
-| `Skeleton`, `Progress`, `sonner`                    | Loading/progress/toast có tác vụ thật; không dùng toast thay lỗi field cần đọc lại.                                                                                                                                                                         |
-| `DropdownMenu`, `Tooltip`, `Popover`, `Pagination`  | Action hiếm, giải thích phụ, nội dung nổi, phân trang có dữ liệu thật; tooltip không giấu thông tin thiết yếu.                                                                                                                                              |
+| Existing primitive in `frontend/src/components/ui` | Usage and notes                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Button`                                           | Default for primary actions; outline/secondary for supporting actions; ghost for low emphasis; link for text navigation; destructive for risky operations in the appropriate context. Keep disabled/pending states real and labels concrete.                                   |
+| `Input`, `Textarea`, `Label`, `Form`               | Labeled forms with field-level guidance/errors. Do not rebuild controls and lose focus behavior merely for a different appearance.                                                                                                                                             |
+| `Select`, `Checkbox`, `RadioGroup`, `Switch`       | One choice from a list; multiple choices; one of a few options; immediate on/off. Do not replace checkboxes with semantically empty pills.                                                                                                                                     |
+| `Dialog`, `AlertDialog`, `Sheet`                   | Focused details/tasks; consequential confirmations; edge panels/mobile navigation. Reuse primitive focus management rather than drawing a custom modal.                                                                                                                        |
+| `Table` + subcomponents                            | Column comparison; descriptive captions and scoped headers. A simple directory does not need a new DataTable engine.                                                                                                                                                           |
+| `Tabs`                                             | Peer panels within one task; do not replace URL navigation when routes are needed.                                                                                                                                                                                             |
+| `Badge`                                            | Short statuses: default/secondary/outline/destructive plus success/warning/info. A static badge is not a button; always provide text and avoid badges for ordinary metadata.                                                                                                   |
+| `Card` + subcomponents                             | An independent object/group; a section and spacing may be sufficient without a card.                                                                                                                                                                                           |
+| `Alert` + description/title                        | Decision-relevant notices: default/destructive and success/warning/info. Defaults to `role="alert"`; override static notes with `role="note"`, and consider `role="status"` for nonurgent outcomes. Add a title only when useful; avoid an h5 that disrupts heading hierarchy. |
+| `Skeleton`, `Progress`, `sonner`                   | Real loading/progress/toasts; do not replace persistent field errors with a transient toast.                                                                                                                                                                                   |
+| `DropdownMenu`, `Tooltip`, `Popover`, `Pagination` | Infrequent actions, supplementary explanations, floating content, and actual data pagination. Tooltips must not hide essential information.                                                                                                                                    |
 
-Domain/shared component hiện có: `MealCard`, `DemoMealCard`, `MealCustomizationDialog`, `CartDrawer`, `StoreHeader`, `SubscriptionPlans` trong `frontend/src/components`. Chúng giữ catalog/cart Shopify và preview theo quy ước hiện tại; không nhân bản cho trang mới. `admin/CustomerDirectory` là composition trình bày dữ liệu, nhận rows/query/callback; tìm kiếm và fixture vẫn thuộc route Admin. Các helper Admin cũ `Panel`, `DataTable`, `SearchBox`, `Modal` còn cục bộ trong `admin.tsx`; đây không phải primitive mới nên dùng cho trang mới. Mở rộng dần khi task sau chạm đúng phạm vi, tránh nhân rộng implementation cũ.
+Existing domain/shared components in `frontend/src/components` include `MealCard`, `DemoMealCard`, `MealCustomizationDialog`, `CartDrawer`, `StoreHeader`, and `SubscriptionPlans`. They preserve Shopify catalog/cart behavior and preview conventions; do not duplicate them for new pages. `admin/CustomerDirectory` composes presentation from rows/query/callback props; search and fixtures remain owned by the Admin route. Legacy Admin helpers `Panel`, `DataTable`, `SearchBox`, and `Modal` remain local to `admin.tsx`; these are legacy implementations rather than the primitives to use on new screens. Migrate them incrementally when an authorized task touches their scope instead of reproducing them elsewhere.
 
-### Các trạng thái
+### States
 
-Loading chỉ khi đang tải thật, giữ vị trí nội dung, có thông báo đọc được. Empty phân biệt chưa có bản ghi với không khớp tìm kiếm; đưa bước khắc phục phù hợp, không bịa số. Error nói việc gì thất bại và cách thử lại nếu có hành vi retry; success chỉ sau khi thao tác được xác nhận. Không đổi thiếu dữ liệu thành `0`; không đổi `0` thành “—”. Disabled action có lý do khi người dùng cần biết, không thêm hành động giả cho đủ trạng thái. Customers hiện đồng bộ/read-only nên chỉ có danh sách, lọc và empty; không thêm network loading/error giả.
+Show loading only while work is actually pending; preserve content placement and provide a readable status. Distinguish an empty dataset from unmatched search and offer an appropriate recovery step without inventing numbers. Errors explain what failed and how to retry when retry behavior exists; success requires confirmed completion. Do not turn missing data into `0` or `0` into “—”. Explain unavailable actions when users need to understand why, and do not invent actions just to demonstrate disabled states. Customers is currently synchronous/read-only, so its relevant states are list, filtering, and empty results rather than fabricated network loading/errors.
 
-## Ví dụ FitKitchen
+## FitKitchen examples
 
-Các snippet trạng thái tài khoản/đơn hàng/khóa bên dưới **chỉ hướng dẫn dùng design system**, không phải tính năng hay dữ liệu đang có trong Customers. Không sao chép vào route và gán status cho fixture hiện tại. Chỉ nối với nguồn đã được triển khai trong task nghiệp vụ tương lai.
+The account/order/locking snippets below **illustrate design-system usage only**. They are not features or data present in Customers. Do not copy them into the route and assign statuses to the existing fixtures. Connect them only to sources implemented in a future, authorized business-feature task.
 
 ```tsx
-// Ví dụ trạng thái khi nguồn dữ liệu thực sự có status.
-<Badge variant="success">Đang hoạt động</Badge>
-<Badge variant="destructive">Đã khóa</Badge>
+// Example statuses when the data source actually provides account status.
+<Badge variant="success">Active</Badge>
+<Badge variant="destructive">Locked</Badge>
 
-// Ví dụ cảnh báo, chỉ khi có đơn chưa hoàn tất đã được xác nhận.
+// Example warning, only when unfinished orders have been confirmed.
 <Alert variant="warning" role="note">
-  <AlertDescription>Khách hàng còn đơn chưa hoàn tất. Kiểm tra đơn trước khi khóa tài khoản.</AlertDescription>
+  <AlertDescription>This customer has unfinished orders. Review them before locking the account.</AlertDescription>
 </Alert>
 
-// Ví dụ visual/disabled, không có handler khóa tài khoản trong task này.
-// Khi triển khai thật: dùng AlertDialog, nêu khách hàng/hậu quả, có hủy và pending/error.
-<Button variant="destructive" disabled>Khóa tài khoản</Button>
+// Visual/disabled example; this task provides no account-lock handler.
+// A real implementation needs AlertDialog, the customer/consequences, cancel, and pending/error states.
+<Button variant="destructive" disabled>Lock account</Button>
 ```
 
-Danh sách/empty thực tế: xem [CustomerDirectory](../../frontend/src/components/admin/customer-directory.tsx). Search có label, count giữ đúng `0`, empty hướng dẫn tìm lại; bảng chỉ chứa tên, email, phone, goal từ fixture cũ. Bỏ nút more-options không có handler và pill trang trí cho fitness goal, không tạo status/history để lấp UI.
+For the actual directory/empty state, see [CustomerDirectory](../../frontend/src/components/admin/customer-directory.tsx). Search has a label, counts preserve `0`, and empty results explain how to search again. Only name, email, phone, and goal come from the existing fixture. The inactive more-options button and decorative goal pills were removed without inventing status/history fields.
 
-Customer: tái dùng `MealCard`/`DemoMealCard`, giữ ảnh món, tên, giá có nguồn, mục tiêu Cut/Bulk/Maintain, calo `kcal`, protein/carbs/fat `g`. Dùng text dễ đọc cho giá trị, metadata dùng muted foreground; badge chỉ khi trạng thái cần nổi bật. Ví dụ sau chỉ là cách render, `meal` phải đến từ dữ liệu hiện có:
+Customer UI should reuse `MealCard`/`DemoMealCard` with sourced meal images, names, prices, Cut/Bulk/Maintain goals, calories in `kcal`, and protein/carbs/fat in `g`. Use readable text for values and muted foreground for metadata; reserve badges for meaningful status. This example illustrates rendering; `meal` must come from existing data:
 
 ```tsx
 <p className="text-sm text-foreground">
-  {meal.calories == null ? "Chưa có calo" : `${meal.calories} kcal`}
+  {meal.calories == null ? "Calories unavailable" : `${meal.calories} kcal`}
   {" · "}
-  {meal.protein == null ? "Chưa có protein" : `${meal.protein}g protein`}
+  {meal.protein == null ? "Protein unavailable" : `${meal.protein}g protein`}
 </p>
 ```
 
-Code món cũ vẫn có màu brand cho chữ nhỏ và truthy fallback; chưa được chuyển đổi toàn bộ trong đợt này. Không coi snippet là xác nhận đã sửa các component đó.
+Legacy meal components still use brand colors for some small text and truthy fallbacks; they have not all been migrated in this change. These examples do not establish that those components have been fixed.
 
-## Dùng skill và kiểm chứng
+## Using skills and verifying changes
 
-- Khi làm UI: đọc [fitkitchen-ui](../../.agents/skills/fitkitchen-ui/SKILL.md), rồi [fitkitchen-ui-review](../../.agents/skills/fitkitchen-ui-review/SKILL.md) trước khi hoàn thành. Nếu môi trường hỗ trợ có thể gọi `$fitkitchen-ui` / `$fitkitchen-ui-review`; nếu chưa nhận, yêu cầu đọc đúng file. Không cần cài bản riêng vào tài khoản, không bảo đảm auto-discovery cho mọi công cụ.
-- Tại `frontend`: `bun install --frozen-lockfile` dùng lockfile sẵn có; `bun run dev`, `bun run lint`, `bun run test`, `bun run build`. `build:dev`, `preview`, `test:watch`, `format` cũng có trong package.json. Không có script `typecheck` hoặc `format:check`; dùng TypeScript/Prettier cục bộ: `bunx --no-install tsc --noEmit`, `bunx --no-install prettier --check <file đã sửa>`. Không chạy `format` vì nó ghi toàn repo.
-- Kiểm tra token không cần dependency: `node scripts/check-design-tokens.mjs` từ `frontend`. Script đọc CSS, kiểm tra mapping/light/dark và tương phản sRGB các cặp quy định. Nền pha trộn/ảnh, focus thực tế và component vẫn cần browser.
-- Chạy lại kiểm chứng khi thay token/component; ghi kết quả và giới hạn trực tiếp trong mô tả PR, phân biệt lỗi baseline bằng bằng chứng.
+- For UI work, read [fitkitchen-ui](../../.agents/skills/fitkitchen-ui/SKILL.md), then [fitkitchen-ui-review](../../.agents/skills/fitkitchen-ui-review/SKILL.md) before completion. Environments that support skill invocation may use `$fitkitchen-ui` / `$fitkitchen-ui-review`; otherwise request the files explicitly. No personal installation is needed, and automatic discovery is not guaranteed for every tool.
+- From `frontend`, `bun install --frozen-lockfile` uses the existing lockfile. Available commands include `bun run dev`, `bun run lint`, `bun run test`, and `bun run build`. `build:dev`, `preview`, `test:watch`, and `format` also exist in package.json. There is no `typecheck` or `format:check` script; use local tools: `bunx --no-install tsc --noEmit` and `bunx --no-install prettier --check <changed files>`. Avoid `format` because it writes across the repository.
+- Check tokens without extra dependencies using `node scripts/check-design-tokens.mjs` from `frontend`. It reads CSS and verifies theme mappings, light/dark values, and sRGB contrast for defined pairs. Blended/image backgrounds, actual focus, and components still need browser inspection.
+- Recheck token/component changes and record actual results and limitations directly in the PR description, distinguishing baseline failures with evidence.
