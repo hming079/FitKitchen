@@ -1,6 +1,9 @@
-const { validateCatalogId, validateListQuery } = require("./catalog.validation");
+const { validateCatalogId, validateListQuery, nullableText } = require("./catalog.validation");
 
 const mealTypes = new Set(["SINGLE", "COMBO_7_DAYS", "TOPPING"]);
+const goalTypes = new Set(["BULK", "CUT", "MAINTAIN"]);
+const goalTypeError = "goal_type must be BULK, CUT, or MAINTAIN";
+const validateAllergens = nullableText(500);
 
 const mealSorts = {
     id: "id",
@@ -22,6 +25,10 @@ function validateMealListQuery(query, manage = false) {
     if (query.meal_type !== undefined) {
         if (!mealTypes.has(query.meal_type)) errors.push("meal_type must be SINGLE, COMBO_7_DAYS, or TOPPING");
         else data.meal_type = query.meal_type;
+    }
+    if (query.goal_type !== undefined) {
+        if (!goalTypes.has(query.goal_type)) errors.push(goalTypeError);
+        else data.goal_type = query.goal_type;
     }
 
     for (const metric of ["calories", "protein"]) {
@@ -55,6 +62,8 @@ const writableFields = [
     "carbs_g",
     "fat_g",
     "meal_type",
+    "goal_type",
+    "allergen_info",
     "is_available"
 ];
 
@@ -133,6 +142,13 @@ function validateMealPayload(payload, { partial = false } = {}) {
         if (!mealTypes.has(payload.meal_type)) {
             errors.push("meal_type must be SINGLE, COMBO_7_DAYS, or TOPPING");
         }
+    }
+    if (payload.goal_type !== undefined && payload.goal_type !== null && !goalTypes.has(payload.goal_type)) {
+        errors.push(`${goalTypeError} (or null)`);
+    }
+    if (payload.allergen_info !== undefined) {
+        const error = validateAllergens(payload.allergen_info);
+        if (error) errors.push(`allergen_info ${error}`);
     }
 
     if (payload.is_available !== undefined && typeof payload.is_available !== "boolean") {

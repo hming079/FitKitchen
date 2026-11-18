@@ -20,6 +20,17 @@ import {
 } from "./catalog-dialogs";
 import { AvailabilityBadge, CatalogInput, CatalogResults } from "./catalog-ui";
 
+const adjustments = [
+  { name: "calories_adjustment", label: "Calories (kcal)", unit: "kcal" },
+  { name: "protein_g_adjustment", label: "Protein (g)", unit: "g protein" },
+  { name: "carbs_g_adjustment", label: "Carbs (g)", unit: "g carbs" },
+  { name: "fat_g_adjustment", label: "Fat (g)", unit: "g fat" },
+] as const;
+const signedAmount = new Intl.NumberFormat("en", {
+  signDisplay: "exceptZero",
+  maximumFractionDigits: 2,
+});
+
 export function MealOptions({ meal, onClose }: { meal: Meal; onClose: () => void }) {
   const options = useQuery({
     queryKey: [...catalogKey, "meal-options", meal.id],
@@ -46,7 +57,10 @@ export function MealOptions({ meal, onClose }: { meal: Meal; onClose: () => void
           className="divide-y divide-border border-y border-border"
         >
           {options.data?.data.map((option) => (
-            <li className="flex flex-wrap items-start justify-between gap-3 py-3" key={option.id}>
+            <li
+              className="flex flex-col items-start gap-3 py-3 sm:flex-row sm:justify-between"
+              key={option.id}
+            >
               <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
                 <p className="font-medium">{option.name}</p>
                 {option.description && (
@@ -59,8 +73,14 @@ export function MealOptions({ meal, onClose }: { meal: Meal; onClose: () => void
                   </span>
                   <AvailabilityBadge available={option.is_available} />
                 </div>
+                <p className="text-sm tabular-nums text-muted-foreground">
+                  {adjustments
+                    .filter(({ name }) => option[name] !== 0)
+                    .map(({ name, unit }) => `${signedAmount.format(option[name])} ${unit}`)
+                    .join(" · ") || "No macro change"}
+                </p>
               </div>
-              <div className="flex gap-1">
+              <div className="flex shrink-0 gap-1">
                 <Button
                   variant="outline"
                   className="min-h-11"
@@ -105,6 +125,10 @@ export function MealOptions({ meal, onClose }: { meal: Meal; onClose: () => void
               name: textField(form, "name").trim(),
               description: optionalText(form, "description"),
               price_adjustment: Number(textField(form, "price_adjustment")),
+              calories_adjustment: Number(textField(form, "calories_adjustment")),
+              protein_g_adjustment: Number(textField(form, "protein_g_adjustment")),
+              carbs_g_adjustment: Number(textField(form, "carbs_g_adjustment")),
+              fat_g_adjustment: Number(textField(form, "fat_g_adjustment")),
             };
             return editing
               ? catalogApi.updateOption(meal.id, editing.id, {
@@ -137,6 +161,22 @@ export function MealOptions({ meal, onClose }: { meal: Meal; onClose: () => void
                 required
                 defaultValue={editing?.price_adjustment ?? 0}
               />
+              <fieldset className="grid grid-cols-2 gap-4">
+                <legend className="mb-2 text-sm font-medium">Macro adjustments</legend>
+                {adjustments.map(({ name, label }) => (
+                  <CatalogInput
+                    key={name}
+                    label={label}
+                    name={name}
+                    type="number"
+                    min={-10000}
+                    max={10000}
+                    step={0.01}
+                    required
+                    defaultValue={editing?.[name] ?? 0}
+                  />
+                ))}
+              </fieldset>
               <AvailableField available={editing ? editing.is_available : true} />
             </>
           )}

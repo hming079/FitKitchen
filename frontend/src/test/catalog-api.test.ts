@@ -13,6 +13,8 @@ const meal = {
   carbs_g: "25.25",
   fat_g: "0.00",
   meal_type: "SINGLE",
+  goal_type: "CUT",
+  allergen_info: "Milk",
   is_available: false,
 };
 const page = (data: unknown[]) => ({
@@ -31,6 +33,7 @@ it("decodes NUMERIC strings while preserving bigint identifiers, zero and false"
     page: 2,
     category_id: meal.category_id,
     meal_type: "SINGLE",
+    goal_type: "CUT",
     available: "false",
     search: "Chicken & rice",
     sort: "price_desc",
@@ -46,13 +49,13 @@ it("decodes NUMERIC strings while preserving bigint identifiers, zero and false"
   expect(result.pagination.total).toBe(21);
   expect(fetch).toHaveBeenCalledWith(
     expect.stringContaining(
-      "/meals/manage?page=2&category_id=9007199254740993&meal_type=SINGLE&available=false&search=Chicken+%26+rice&sort=price_desc",
+      "/meals/manage?page=2&category_id=9007199254740993&meal_type=SINGLE&goal_type=CUT&available=false&search=Chicken+%26+rice&sort=price_desc",
     ),
     expect.anything(),
   );
 });
 
-it("decodes negative option prices and product prices from the API", async () => {
+it("decodes option prices, signed macro adjustments and product prices from the API", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) =>
@@ -66,6 +69,10 @@ it("decodes negative option prices and product prices from the API", async () =>
                 name: "Smaller portion",
                 description: null,
                 price_adjustment: "-5000.25",
+                calories_adjustment: "-80.25",
+                protein_g_adjustment: "16.00",
+                carbs_g_adjustment: "0.00",
+                fat_g_adjustment: "-2.50",
                 is_available: true,
               },
             ],
@@ -87,7 +94,13 @@ it("decodes negative option prices and product prices from the API", async () =>
           ),
     ),
   );
-  expect((await catalogApi.listOptions(meal.id)).data[0]?.price_adjustment).toBe(-5000.25);
+  expect((await catalogApi.listOptions(meal.id)).data[0]).toMatchObject({
+    price_adjustment: -5000.25,
+    calories_adjustment: -80.25,
+    protein_g_adjustment: 16,
+    carbs_g_adjustment: 0,
+    fat_g_adjustment: -2.5,
+  });
   expect((await catalogApi.listProducts({})).data[0]).toMatchObject({
     price: 10000,
     stock_quantity: 0,

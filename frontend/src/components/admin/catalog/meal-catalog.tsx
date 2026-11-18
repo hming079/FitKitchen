@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOff } from "lucide-react";
 import { SectionError } from "@/components/admin/customer-ui";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { catalogApi, mealTypes, type Category, type Meal, type MealType } from "@/lib/catalog-api";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  catalogApi,
+  goalTypes,
+  mealTypes,
+  type Category,
+  type GoalType,
+  type Meal,
+  type MealType,
+} from "@/lib/catalog-api";
 import {
   catalogKey,
   useCatalogFilters,
@@ -34,6 +44,8 @@ const typeLabels: Record<MealType, string> = {
   TOPPING: "Topping",
 };
 const typeChoices = mealTypes.map((value) => ({ value, label: typeLabels[value] }));
+const goalLabels: Record<GoalType, string> = { BULK: "Bulk", CUT: "Cut", MAINTAIN: "Maintain" };
+const goalChoices = goalTypes.map((value) => ({ value, label: goalLabels[value] }));
 const noCategory = { value: "none", label: "No category" };
 const allCategories = { value: "all", label: "All categories" };
 const mealMeasures = [
@@ -79,6 +91,7 @@ function MealEditor({
   categories: Category[];
   onClose: () => void;
 }) {
+  const allergensId = useId();
   const choices = [noCategory, ...categories.map(categoryChoice)];
   if (meal?.category_id && !categories.some((category) => category.id === meal.category_id)) {
     choices.push({ value: meal.category_id, label: "Unknown category" });
@@ -94,6 +107,7 @@ function MealEditor({
       save={(form) => {
         const categoryId = textField(form, "category_id");
         const type = mealTypes.find((value) => value === textField(form, "meal_type"));
+        const goal = textField(form, "goal_type");
         const available = form.has("is_available");
         const fields = {
           name: textField(form, "name").trim(),
@@ -106,6 +120,8 @@ function MealEditor({
           carbs_g: Number(textField(form, "carbs_g")),
           fat_g: Number(textField(form, "fat_g")),
           meal_type: type,
+          goal_type: goalTypes.find((value) => value === goal) ?? null,
+          allergen_info: optionalText(form, "allergen_info"),
         };
         return meal
           ? catalogApi.updateMeal(meal.id, {
@@ -142,6 +158,25 @@ function MealEditor({
               }
               defaultValue={meal ? (meal.meal_type ?? "none") : "SINGLE"}
             />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CatalogSelect
+              label="Goal"
+              name="goal_type"
+              options={[{ value: "none", label: "None" }, ...goalChoices]}
+              defaultValue={meal?.goal_type ?? "none"}
+            />
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor={allergensId}>Allergens</Label>
+              <Textarea
+                id={allergensId}
+                name="allergen_info"
+                rows={2}
+                className="resize-y"
+                maxLength={500}
+                defaultValue={meal?.allergen_info ?? ""}
+              />
+            </div>
           </div>
           <DescriptionField value={meal?.description} />
           <CatalogInput
@@ -186,10 +221,15 @@ export function MealCatalog() {
   const state = useCatalogFilters();
   const categories = useCategories();
   const [category, setCategory] = useState("all");
+  const [goal, setGoal] = useState("all");
   const [editor, setEditor] = useState<{ meal?: Meal } | null>(null);
   const [options, setOptions] = useState<Meal | null>(null);
   const [action, setAction] = useState<CatalogAction | null>(null);
-  const filters = { ...state.filters, category_id: category === "all" ? undefined : category };
+  const filters = {
+    ...state.filters,
+    category_id: category === "all" ? undefined : category,
+    goal_type: goalTypes.find((value) => value === goal),
+  };
   const meals = useQuery({
     queryKey: [...catalogKey, "meals", filters],
     queryFn: ({ signal }) => catalogApi.listMeals(filters, signal),
@@ -217,7 +257,7 @@ export function MealCatalog() {
             Add meal
           </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3">
           <CatalogInput
             label="Search meals"
             type="search"
@@ -232,6 +272,15 @@ export function MealCatalog() {
             options={[allCategories, ...categoryItems.map(categoryChoice)]}
             onValueChange={(value) => {
               setCategory(value);
+              state.setPage(1);
+            }}
+          />
+          <CatalogSelect
+            label="Goal"
+            value={goal}
+            options={[{ value: "all", label: "All goals" }, ...goalChoices]}
+            onValueChange={(value) => {
+              setGoal(value);
               state.setPage(1);
             }}
           />
@@ -252,6 +301,7 @@ export function MealCatalog() {
           name="Meal listings"
           columns={[
             "Meal",
+            "Goal",
             "Category",
             "Price",
             "Type",
@@ -268,6 +318,9 @@ export function MealCatalog() {
                   <MealThumbnail key={meal.image_url} url={meal.image_url} />
                   <span className="min-w-0 [overflow-wrap:anywhere]">{meal.name}</span>
                 </div>
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {meal.goal_type ? goalLabels[meal.goal_type] : "—"}
               </TableCell>
               <TableCell className="min-w-28 max-w-44 [overflow-wrap:anywhere]">
                 {meal.category_id ? (categoryNames.get(meal.category_id) ?? "—") : "No category"}

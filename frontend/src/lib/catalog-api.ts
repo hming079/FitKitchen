@@ -16,6 +16,8 @@ const pagination = z.object({
 });
 export const mealTypes = ["SINGLE", "COMBO_7_DAYS", "TOPPING"] as const;
 const mealType = z.enum(mealTypes);
+export const goalTypes = ["BULK", "CUT", "MAINTAIN"] as const;
+const goalType = z.enum(goalTypes);
 
 const categoryRecord = z.object({ id, name: z.string(), description: text });
 const categorySchema = categoryRecord.extend({ meal_count: z.number().int().nonnegative() });
@@ -31,6 +33,8 @@ const mealSchema = z.object({
   carbs_g: numeric,
   fat_g: numeric,
   meal_type: mealType.nullable(),
+  goal_type: goalType.nullable(),
+  allergen_info: text,
   is_available: availability,
 });
 const optionSchema = z.object({
@@ -39,6 +43,10 @@ const optionSchema = z.object({
   name: z.string(),
   description: text,
   price_adjustment: numeric,
+  calories_adjustment: numeric,
+  protein_g_adjustment: numeric,
+  carbs_g_adjustment: numeric,
+  fat_g_adjustment: numeric,
   is_available: availability,
 });
 const productSchema = z.object({
@@ -58,6 +66,7 @@ export type Meal = z.infer<typeof mealSchema>;
 export type MealOption = z.infer<typeof optionSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type MealType = z.infer<typeof mealType>;
+export type GoalType = z.infer<typeof goalType>;
 type MealFields = Omit<Meal, "id" | "meal_type" | "is_available"> & {
   meal_type?: MealType | undefined;
   is_available: boolean;
@@ -79,6 +88,7 @@ type ListFilters = {
 type MealFilters = ListFilters & {
   category_id?: string | undefined;
   meal_type?: MealType;
+  goal_type?: GoalType | undefined;
   sort?:
     | "id"
     | "price_asc"

@@ -5,13 +5,16 @@ const { optionFields } = require("./option.validation");
 
 const mealColumns = `
     id, category_id, name, description, image_url, price, calories,
-    protein_g, carbs_g, fat_g, meal_type, is_available, created_at, updated_at
+    protein_g, carbs_g, fat_g, meal_type, goal_type, allergen_info, is_available, created_at, updated_at
 `;
 
-const optionColumns = "id, meal_id, name, description, price_adjustment, is_available, created_at";
+const optionFieldsToRead = ["id", "meal_id", ...Object.keys(optionFields), "created_at"];
+const optionColumns = optionFieldsToRead.join(", ");
+const qualifiedOptionColumns = optionFieldsToRead.map(column => `options.${column}`).join(", ");
 const mealFilters = {
     category_id: "category_id =",
     meal_type: "meal_type =",
+    goal_type: "goal_type =",
     min_calories: "calories >=",
     max_calories: "calories <=",
     min_protein: "protein_g >=",
@@ -50,8 +53,7 @@ class MealService {
 
     async getCustomizations(id, manage) {
         const { rows } = await pool.query(
-            `SELECT options.id, options.meal_id, options.name, options.description,
-                    options.price_adjustment, options.is_available, options.created_at
+            `SELECT ${qualifiedOptionColumns}
              FROM meals
              LEFT JOIN meal_customization_options AS options
                  ON options.meal_id = meals.id AND ($2 OR options.is_available = TRUE)

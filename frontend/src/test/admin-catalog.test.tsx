@@ -15,6 +15,20 @@ const meal = {
   carbs_g: "0.00",
   fat_g: "0.00",
   meal_type: "SINGLE",
+  goal_type: "CUT",
+  allergen_info: "Milk",
+  is_available: true,
+};
+const option = {
+  id: "1",
+  meal_id: meal.id,
+  name: "Extra chicken",
+  description: null,
+  price_adjustment: "0.00",
+  calories_adjustment: "80.00",
+  protein_g_adjustment: "16.00",
+  carbs_g_adjustment: "0.00",
+  fat_g_adjustment: "0.00",
   is_available: true,
 };
 const category = { id: "2", name: "Chicken", description: null, meal_count: 1 };
@@ -63,6 +77,7 @@ function show(write?: (url: string, options: RequestInit) => Response | Promise<
     if (url.includes("/meal-categories")) return result([category]);
     if (url.includes("/products/manage")) return list([product]);
     if (url.includes("/meals/manage")) return list([meal]);
+    if (url.includes("/customizations/manage")) return result([option]);
     throw new Error(`Unexpected request to ${url}`);
   });
   vi.stubGlobal("fetch", fetch);
@@ -77,6 +92,11 @@ function show(write?: (url: string, options: RequestInit) => Response | Promise<
 
 function selectTab(name: string) {
   fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });
+}
+
+function choose(select: HTMLElement, name: string) {
+  fireEvent.keyDown(select, { key: "Enter" });
+  fireEvent.click(screen.getByRole("option", { name }));
 }
 
 async function fillMeal() {
@@ -97,15 +117,20 @@ async function fillMeal() {
   return dialog;
 }
 
-it("lists meals from the manage API and formats their prices in VND", async () => {
-  show();
-  const row = (await screen.findByText(meal.name)).closest("tr");
-  expect(row?.textContent).toContain(
+it("lists meal goals and VND prices and sends the selected goal filter", async () => {
+  const fetch = show();
+  const row = await screen.findByRole("row", { name: new RegExp(meal.name) });
+  expect(row.textContent).toContain(
     new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(95000),
   );
   expect(row).toHaveTextContent("480 kcal");
   expect(row).toHaveTextContent("42.5 g");
+  expect(within(row).getByRole("cell", { name: "Cut" })).toBeVisible();
   expect(row).toHaveTextContent("On sale");
+  choose(screen.getByRole("combobox", { name: "Goal" }), "Cut");
+  await waitFor(() => {
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("goal_type=CUT"), expect.anything());
+  });
 });
 
 it("posts a meal with numeric price, calories and macros and disables submit while saving", async () => {
@@ -116,6 +141,9 @@ it("posts a meal with numeric price, calories and macros and disables submit whi
   const write = vi.fn(() => response);
   const fetch = show(write);
   const dialog = await fillMeal();
+  expect(within(dialog).getByRole("combobox", { name: "Goal" })).toHaveTextContent("None");
+  choose(within(dialog).getByRole("combobox", { name: "Goal" }), "Bulk");
+  fireEvent.change(within(dialog).getByLabelText("Allergens"), { target: { value: " Milk " } });
   const submit = within(dialog).getByRole("button", { name: "Add meal" });
   fireEvent.click(submit);
   await waitFor(() => expect(submit).toBeDisabled());
@@ -133,10 +161,35 @@ it("posts a meal with numeric price, calories and macros and disables submit whi
     carbs_g: 0,
     fat_g: 0,
     meal_type: "SINGLE",
+    goal_type: "BULK",
+    allergen_info: " Milk ",
     is_available: true,
   });
   finish(result({ ...meal, name: "New meal" }));
   await waitFor(() => expect(dialog).not.toBeInTheDocument());
+});
+
+it("displays option macro changes and submits signed numeric edits and zero", async () => {
+  const write = vi.fn(() => result({ ...option, calories_adjustment: "-25.50" }));
+  const fetch = show(write);
+  fireEvent.click(await screen.findByRole("button", { name: `Options for ${meal.name}` }));
+  expect(await screen.findByText("+80 kcal · +16 g protein")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: `Edit ${option.name}` }));
+  const dialog = screen.getByRole("dialog", { name: "Edit option" });
+  const calories = within(dialog).getByLabelText("Calories (kcal)");
+  expect(calories).toHaveValue(80);
+  expect(within(dialog).getByLabelText("Carbs (g)")).toHaveValue(0);
+  fireEvent.change(calories, { target: { value: "-25.5" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  const patch = fetch.mock.calls.find(([, options]) => options.method === "PATCH");
+  expect(patch?.[0]).toMatch(/\/customizations\/1$/);
+  expect(JSON.parse(String(patch?.[1].body))).toMatchObject({
+    calories_adjustment: -25.5,
+    protein_g_adjustment: 16,
+    carbs_g_adjustment: 0,
+    fat_g_adjustment: 0,
+  });
 });
 
 it("shows a recoverable error when backend validation returns 400 without a code", async () => {

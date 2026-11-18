@@ -43,6 +43,17 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
     for (const file of ["init/01_schema.sql", "init/02_mockdata.sql", "migrations/001_admin_customers.sql"]) {
         await pool.query(await fs.readFile(path.join(__dirname, "../../db", file), "utf8"));
     }
+    const goalMacrosMigration = await fs.readFile(
+        path.join(__dirname, "../../db/migrations/002_catalog_goal_macros.sql"), "utf8"
+    );
+    await t.test("migration 002 can be applied twice and enforces the goal constraint", async () => {
+        await pool.query(goalMacrosMigration);
+        await pool.query(goalMacrosMigration);
+        await assert.rejects(pool.query("UPDATE meals SET goal_type = $1 WHERE id = 1", ["INVALID"]), {
+            code: "23514", constraint: "meals_goal_type_check"
+        });
+        assert.equal((await pool.query("SELECT goal_type FROM meals WHERE id = 1")).rows[0].goal_type, "CUT");
+    });
     const { rows: [admin, customer] } = await pool.query(
         `INSERT INTO users (email, password_hash, full_name, role) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
          RETURNING id`,
@@ -73,10 +84,16 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
     const ids = response => response.body.data.map(row => row.id);
 
     await t.test("public meals are available, filter by calories and protein and sort across pages", async () => {
-        const hidden = await adminRequest("/meals", "POST", { ...mealPayload, is_available: false });
+        const hidden = await adminRequest("/meals", "POST", {
+            ...mealPayload, goal_type: "CUT", allergen_info: "Milk", is_available: false
+        });
         assert.equal(hidden.status, 201);
+        assert.equal(hidden.body.data.goal_type, "CUT");
+        assert.equal(hidden.body.data.allergen_info, "Milk");
         const tied = await adminRequest("/meals", "POST", { ...mealPayload, price: 120000 });
         assert.equal(tied.status, 201);
+        assert.equal(tied.body.data.goal_type, null);
+        assert.equal(tied.body.data.allergen_info, null);
         const result = await request("/meals?available=false&min_calories=500&max_calories=600&min_protein=35&max_protein=50&meal_type=SINGLE&sort=price_desc&page_size=1");
         assert.equal(result.status, 200);
         assert.deepEqual(ids(result), ["3"]);
@@ -92,11 +109,38 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.deepEqual(ids(await request("/meals?category_id=3&meal_type=SINGLE")), ["2"]);
         assert.equal((await request(`/meals/${hidden.body.data.id}`)).body.data.is_available, false);
         assert.deepEqual(ids(await adminRequest("/meals/manage?available=false")), [hidden.body.data.id]);
+        const publicCut = await request("/meals?goal_type=CUT");
+        assert.deepEqual(ids(publicCut), ["1", "4"]);
+        assert.equal(publicCut.body.pagination.total, 2);
+        assert.deepEqual(ids(await adminRequest("/meals/manage?goal_type=CUT")), ["1", "4", hidden.body.data.id]);
+        assert.deepEqual(ids(await adminRequest("/meals/manage?goal_type=CUT&available=false")), [hidden.body.data.id]);
         assert.equal((await adminRequest("/meals/manage")).body.pagination.total, 6);
         assert.equal((await adminRequest("/meals/manage?available=true")).body.pagination.total, 5);
         const invalid = await request("/meals?min_calories=2&max_calories=1");
         assert.equal(invalid.status, 400);
         assert.deepEqual(invalid.body, { success: false, message: "Validation failed", errors: ["min_calories must be less than or equal to max_calories"] });
+    });
+
+    await t.test("meal goal and allergen fields can be cleared and invalid goals return HTTP 400", async () => {
+        const path = "/meals/3";
+        const original = (await request(path)).body.data;
+        assert.equal(original.goal_type, "MAINTAIN");
+        assert.equal(original.allergen_info, "Cá, sữa");
+        for (const response of [
+            await adminRequest("/meals", "POST", { ...mealPayload, goal_type: "SINGLE" }),
+            await adminRequest(path, "PATCH", { goal_type: "SINGLE" }),
+            await request("/meals?goal_type=maintain"),
+            await adminRequest("/meals/manage?goal_type=CUT&goal_type=BULK")
+        ]) {
+            assert.equal(response.status, 400);
+            assert.match(response.body.errors[0], /^goal_type /);
+        }
+        assert.equal((await adminRequest(path, "PATCH", { allergen_info: "x".repeat(501) })).status, 400);
+        const cleared = await adminRequest(path, "PATCH", { goal_type: null, allergen_info: null });
+        assert.equal(cleared.status, 200);
+        assert.equal(cleared.body.data.goal_type, null);
+        assert.equal(cleared.body.data.allergen_info, null);
+        assert.deepEqual((await request(path)).body.data, cleared.body.data);
     });
 
     await t.test("anonymous and customer sessions cannot use catalog management routes", async () => {
@@ -163,19 +207,35 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         const { id } = created.body.data;
         assert.equal(created.body.data.name, "Catalog option");
         assert.equal(created.body.data.price_adjustment, "0.00");
+        for (const field of ["calories_adjustment", "protein_g_adjustment", "carbs_g_adjustment", "fat_g_adjustment"]) {
+            assert.equal(created.body.data[field], "0.00");
+        }
         assert.ok(ids(await request(path)).includes(id));
         const dup = await adminRequest(path, "POST", { name: "Catalog option" });
         assert.equal(dup.status, 409);
         assert.equal(dup.body.code, "OPTION_NAME_TAKEN");
-        const sameName = await adminRequest("/meals/2/customizations", "POST", { name: "Catalog option" });
+        const sameName = await adminRequest("/meals/2/customizations", "POST", {
+            name: "Catalog option", calories_adjustment: 80, protein_g_adjustment: 16
+        });
         assert.equal(sameName.status, 201);
+        assert.equal(sameName.body.data.calories_adjustment, "80.00");
+        assert.equal(sameName.body.data.protein_g_adjustment, "16.00");
         const renamed = await adminRequest(`${path}/${id}`, "PATCH", { name: "Thêm bơ" });
         assert.equal(renamed.status, 409);
         assert.equal(renamed.body.code, "OPTION_NAME_TAKEN");
-        const updated = await adminRequest(`${path}/${id}`, "PATCH", { price_adjustment: -25.5, description: null });
+        assert.equal((await adminRequest(`${path}/${id}`, "PATCH", { fat_g_adjustment: -10000.01 })).status, 400);
+        const updated = await adminRequest(`${path}/${id}`, "PATCH", {
+            price_adjustment: -25.5, description: null,
+            calories_adjustment: -80.25, protein_g_adjustment: 16, carbs_g_adjustment: 0, fat_g_adjustment: -2.5
+        });
         assert.equal(updated.status, 200);
         assert.equal(updated.body.data.description, null);
         assert.equal(updated.body.data.price_adjustment, "-25.50");
+        assert.equal(updated.body.data.calories_adjustment, "-80.25");
+        assert.equal(updated.body.data.protein_g_adjustment, "16.00");
+        assert.equal(updated.body.data.carbs_g_adjustment, "0.00");
+        assert.equal(updated.body.data.fat_g_adjustment, "-2.50");
+        assert.deepEqual((await request(path)).body.data.find(row => row.id === id), updated.body.data);
         assert.equal((await adminRequest(`/meals/2/customizations/${id}`, "PATCH", { name: "Foreign" })).status, 404);
         assert.equal((await adminRequest(`/meals/2/customizations/${id}`, "DELETE")).status, 404);
         await pool.query("INSERT INTO cart_item_customizations (cart_item_id, option_id) VALUES ($1, $2)", [1, id]);
@@ -184,7 +244,8 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.equal(removed.body.data.is_available, false);
         assert.ok(!ids(await request(path)).includes(id));
         const manage = await adminRequest(`${path}/manage`);
-        assert.equal(manage.body.data.find(row => row.id === id).is_available, false);
+        assert.deepEqual(removed.body.data, { ...updated.body.data, is_available: false });
+        assert.deepEqual(manage.body.data.find(row => row.id === id), removed.body.data);
     });
 
     await t.test("products support filtering, CRUD, soft deletion and atomic stock adjustments", async () => {

@@ -56,6 +56,21 @@ test("customization validates field limits and preserves negative amounts and fa
     assert.ok(validateOptionPayload({ meal_id: "1" }, { partial: true }).errors.length);
 });
 
+test("option macro adjustments accept finite signed numbers within each field's bounds", () => {
+    const patch = {
+        calories_adjustment: 80.25,
+        protein_g_adjustment: -10000,
+        carbs_g_adjustment: 0,
+        fat_g_adjustment: 10000
+    };
+    assert.deepEqual(validateOptionPayload(patch, { partial: true }), { data: patch, errors: [] });
+    for (const field of Object.keys(patch)) {
+        for (const value of [Infinity, NaN, -10000.01, 10000.01, "0", null, false]) {
+            assert.ok(validateOptionPayload({ [field]: value }, { partial: true }).errors.length, field);
+        }
+    }
+});
+
 test("meal filters validate ranges, query types, sort and bounded pagination", () => {
     assert.deepEqual(validateMealListQuery({ available: ["false", "all"] }), {
         data: { search: "", sort: "id", available: true, page: 1, page_size: 20 }, errors: []
@@ -68,21 +83,37 @@ test("meal filters validate ranges, query types, sort and bounded pagination", (
         { min_calories: ["0", "1"] }, { min_calories: "" }, { sort: "constructor" },
         { sort: "price" }, { page: "0" }, { page: "100001" }, { page_size: "1.2" },
         { page_size: "101" }, { search: "x".repeat(201) }, { search: ["a", "b"] },
-        { meal_type: "CUT" }, { category_id: "9223372036854775808" }, { available: "no" }
+        { meal_type: "CUT" }, { category_id: "9223372036854775808" }, { available: "no" },
+        { goal_type: "cut" }, { goal_type: ["CUT", "BULK"] }, { goal_type: null }
     ]) {
         assert.ok(validateMealListQuery(query, true).errors.length, JSON.stringify(query));
     }
     assert.deepEqual(validateMealListQuery({
         min_calories: "0", max_protein: "15.5", category_id: "9223372036854775807",
-        meal_type: "TOPPING", sort: "protein_desc", page: "100000", page_size: "100"
+        meal_type: "TOPPING", goal_type: "CUT", sort: "protein_desc", page: "100000", page_size: "100"
     }), {
         data: {
             search: "", sort: "protein_desc", available: true, page: 100000, page_size: 100,
-            min_calories: 0, max_protein: 15.5, category_id: "9223372036854775807", meal_type: "TOPPING"
+            min_calories: 0, max_protein: 15.5, category_id: "9223372036854775807",
+            meal_type: "TOPPING", goal_type: "CUT"
         },
         errors: []
     });
     assert.equal(validateMealPayload({ category_id: "9007199254740993" }, { partial: true }).data.category_id, "9007199254740993");
+});
+
+test("meal accepts valid goals and bounded allergen text, or null to clear either field", () => {
+    const partial = { partial: true };
+    for (const goal_type of ["BULK", "CUT", "MAINTAIN", null]) {
+        const data = { goal_type, allergen_info: goal_type === null ? null : "x".repeat(500) };
+        assert.deepEqual(validateMealPayload(data, partial), { data, errors: [] });
+    }
+    for (const payload of [
+        { goal_type: "SINGLE" }, { goal_type: "" }, { goal_type: ["CUT"] },
+        { allergen_info: "x".repeat(501) }, { allergen_info: "\0" }, { allergen_info: 1 }
+    ]) {
+        assert.ok(validateMealPayload(payload, partial).errors.length);
+    }
 });
 
 test("product list validates exact category and stock filters", () => {
