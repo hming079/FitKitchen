@@ -47,6 +47,14 @@ class UserService {
         return result.rows[0];
     }
 
+    async findCredentialsByEmail(email) {
+        const result = await pool.query(
+            "SELECT id, email, password_hash, full_name, role, is_locked FROM users WHERE email = $1",
+            [email]
+        );
+        return result.rows[0];
+    }
+
     async create(data) {
         const result = await pool.query(
             `INSERT INTO users

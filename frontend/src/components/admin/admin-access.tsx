@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { api, sessionSchema, type Session } from "@/lib/admin-api";
+import { ACCESS_TOKEN_KEY, api, sessionSchema, type Session } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -25,6 +25,7 @@ export function AdminAccess({ children }: { children: (user: Session) => ReactNo
     function expired(event: Event) {
       setInvalid((event as CustomEvent<string>).detail);
       client.removeQueries({ queryKey: ["admin"] });
+      sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     }
     window.addEventListener("fitkitchen:session-change", changed);
     window.addEventListener("fitkitchen:session-invalid", expired);
@@ -50,9 +51,12 @@ export function AdminAccess({ children }: { children: (user: Session) => ReactNo
           <AlertDescription>{message}</AlertDescription>
         </Alert>
         <p className="text-sm text-muted-foreground">
-          Account sign-in is awaiting integration. Contact your team administrator for access.
+          Sign in with an administrator account to open this workspace.
         </p>
         <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link to="/login">Sign in</Link>
+          </Button>
           <Button
             variant="outline"
             onClick={() => {

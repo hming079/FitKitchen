@@ -5,6 +5,7 @@ const mealModule = require("./modules/meal");
 const categoryModule = require("./modules/category");
 const productModule = require("./modules/product");
 const userModule = require("./modules/user");
+const authModule = require("./modules/auth");
 const adminModule = require("./modules/admin");
 const { authenticate } = require("./middleware/auth");
 
@@ -25,6 +26,7 @@ app.use(mealModule.basePath, mealModule.router);
 app.use(categoryModule.basePath, categoryModule.router);
 app.use(productModule.basePath, productModule.router);
 app.use(userModule.basePath, userModule.router);
+app.use(authModule.basePath, authModule.router);
 app.use(adminModule.basePath, adminModule.router);
 app.get('/api/session', authenticate, (req, res) => res.json({ success: true, data: req.user }));
 
