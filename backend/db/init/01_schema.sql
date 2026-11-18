@@ -42,6 +42,8 @@ CREATE TABLE meals (
     carbs_g NUMERIC(8,2) NOT NULL,
     fat_g NUMERIC(8,2) NOT NULL,
     meal_type VARCHAR(50) DEFAULT 'SINGLE', -- SINGLE, COMBO_7_DAYS, TOPPING
+    goal_type VARCHAR(20) CONSTRAINT meals_goal_type_check CHECK (goal_type IN ('BULK', 'CUT', 'MAINTAIN')),
+    allergen_info TEXT,
     is_available BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -153,6 +155,10 @@ CREATE TABLE meal_customization_options (
     name VARCHAR(150) NOT NULL,
     description TEXT,
     price_adjustment NUMERIC(12,2) NOT NULL DEFAULT 0,
+    calories_adjustment NUMERIC(8,2) NOT NULL DEFAULT 0,
+    protein_g_adjustment NUMERIC(8,2) NOT NULL DEFAULT 0,
+    carbs_g_adjustment NUMERIC(8,2) NOT NULL DEFAULT 0,
+    fat_g_adjustment NUMERIC(8,2) NOT NULL DEFAULT 0,
     is_available BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (meal_id, name)

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { CatalogManager } from "@/components/admin/catalog/catalog-manager";
 import { CustomerDirectory } from "@/components/admin/customer-directory";
 import { AdminAccess } from "@/components/admin/admin-access";
 import { AdminMobileNavigation } from "@/components/admin/admin-mobile-navigation";
@@ -24,7 +25,6 @@ import {
   Flame,
   LayoutDashboard,
   Leaf,
-  Plus,
   Search,
   Settings2,
   ShoppingBag,
@@ -35,8 +35,8 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
-import { demoMeals, demoOrders, formatUsd, type DemoMeal, type DemoOrder } from "@/lib/demo-store";
+import { useState, type ReactNode } from "react";
+import { demoOrders, formatUsd, type DemoOrder } from "@/lib/demo-store";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -119,7 +119,6 @@ const weekly = [
   { day: "Sat", amount: 1230 },
   { day: "Sun", amount: 980 },
 ];
-type Meal = DemoMeal;
 
 function AdminRoute() {
   return <AdminAccess>{(user) => <AdminPage key={user.id} user={user} />}</AdminAccess>;
@@ -127,22 +126,14 @@ function AdminRoute() {
 
 function AdminPage({ user }: { user: Session }) {
   const [view, setView] = useState<View>("Customers");
+  const showDemoControls = view !== "Customers" && view !== "Meals";
   const [orders, setOrders] = useState<(Omit<DemoOrder, "status"> & { status: Status })[]>(
     demoOrders.map((o) => ({ ...o, status: o.status as Status })),
   );
-  const [meals, setMeals] = useState<Meal[]>(demoMeals);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  const [addMeal, setAddMeal] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [range, setRange] = useState("This week");
-  const [newMeal, setNewMeal] = useState({
-    title: "",
-    price: "",
-    type: "Meal" as Meal["type"],
-    calories: "",
-    protein: "",
-  });
   const filteredOrders = orders.filter((o) =>
     `${o.id} ${o.customer}`.toLowerCase().includes(query.toLowerCase()),
   );
@@ -153,25 +144,6 @@ function AdminPage({ user }: { user: Session }) {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2800);
   };
-  const saveMeal = (event: FormEvent) => {
-    event.preventDefault();
-    const item: Meal = {
-      id: `meal-${Date.now()}`,
-      title: newMeal.title,
-      price: Number(newMeal.price),
-      type: newMeal.type,
-      calories: Number(newMeal.calories),
-      protein: Number(newMeal.protein),
-      carbs: 0,
-      fat: 0,
-      image: demoMeals[0]?.image ?? "",
-    };
-    setMeals((all) => [...all, item]);
-    setNewMeal({ title: "", price: "", type: "Meal", calories: "", protein: "" });
-    setAddMeal(false);
-    toast("Meal added to the demo menu");
-  };
-
   const selectView = (nextView: View) => {
     setView(nextView);
     setQuery("");
@@ -206,7 +178,7 @@ function AdminPage({ user }: { user: Session }) {
             >
               <Icon size={17} strokeWidth={1.8} />
               <span>{name}</span>
-              {count && view !== "Customers" && (
+              {count && showDemoControls && (
                 <span className="ml-auto rounded-md bg-card px-1.5 py-0.5 text-[14px] text-muted-foreground">
                   {count}
                 </span>
@@ -227,7 +199,7 @@ function AdminPage({ user }: { user: Session }) {
         </button>
       </div>
       <div className="mt-auto px-4 pb-4">
-        {view !== "Customers" && (
+        {showDemoControls && (
           <div className="mb-4 rounded-sm border border-border bg-secondary p-3">
             <div className="mb-2 flex items-center gap-2">
               <span className="grid size-7 place-items-center rounded-sm bg-secondary text-muted-foreground">
@@ -278,7 +250,7 @@ function AdminPage({ user }: { user: Session }) {
             <div className="sm:hidden text-sm font-semibold">{view}</div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            {view !== "Customers" && (
+            {showDemoControls && (
               <>
                 <div className="hidden items-center gap-2 rounded-sm border border-border bg-secondary px-3 py-2 text-[13px] text-muted-foreground md:flex">
                   <Command size={13} />
@@ -307,7 +279,7 @@ function AdminPage({ user }: { user: Session }) {
         <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-7 sm:py-8 lg:px-9">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              {view !== "Customers" && (
+              {showDemoControls && (
                 <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold uppercase tracking-[.15em] text-muted-foreground">
                   <span className="size-1.5 rounded-full bg-secondary" /> Monday, November 16, 2026
                 </div>
@@ -322,21 +294,13 @@ function AdminPage({ user }: { user: Session }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {view !== "Customers" && (
+              {showDemoControls && (
                 <button
                   onClick={() => toast("Report exported from demo data")}
                   className="flex h-9 items-center gap-2 rounded-sm border border-border bg-card px-3 text-[13px] font-medium text-muted-foreground shadow-sm hover:bg-secondary"
                 >
                   <Download size={14} /> <span className="hidden sm:inline">Export report</span>
                   <span className="sm:hidden">Export</span>
-                </button>
-              )}
-              {view === "Meals" && (
-                <button
-                  onClick={() => setAddMeal(true)}
-                  className="flex h-9 items-center gap-2 rounded-sm bg-lime px-3 text-[13px] font-semibold text-foreground hover:bg-secondary"
-                >
-                  <Plus size={15} /> Add new meal
                 </button>
               )}
             </div>
@@ -358,21 +322,7 @@ function AdminPage({ user }: { user: Session }) {
               <OrdersTable orders={filteredOrders} onStatus={setStatus} onView={setSelectedOrder} />
             </Panel>
           )}
-          {view === "Meals" && (
-            <Panel
-              title="Menu catalog"
-              sub={`${meals.length} meals · Demo menu edits stay in this preview.`}
-              right={<SearchBox value={query} onChange={setQuery} placeholder="Search meals..." />}
-            >
-              <MealsTable
-                meals={meals.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()))}
-                onDelete={(id) => {
-                  setMeals((all) => all.filter((m) => m.id !== id));
-                  toast("Meal removed from the demo menu");
-                }}
-              />
-            </Panel>
-          )}
+          {view === "Meals" && <CatalogManager />}
           {view === "Promotions" && (
             <Panel title="Discount codes" sub="Create and manage customer offers.">
               <Promotions />
@@ -381,92 +331,13 @@ function AdminPage({ user }: { user: Session }) {
           {view === "Customers" && <CustomerDirectory />}
           {view === "Subscriptions" && <Subscriptions />}
           <div className="mt-6 flex items-center justify-between text-[14px] text-muted-foreground">
-            <span>© 2026 FitKitchen · Other tabs use demo data</span>
+            <span>© 2026 FitKitchen{view !== "Meals" && " · Other tabs use demo data"}</span>
             <Button variant="ghost" onClick={() => setAccessToken(null)}>
               Sign out
             </Button>
           </div>
         </main>
       </div>
-      {addMeal && (
-        <Modal
-          title="Add a new meal"
-          description="Create a menu listing in your local demo workspace."
-          onClose={() => setAddMeal(false)}
-        >
-          <form onSubmit={saveMeal} className="space-y-4">
-            <Field label="Meal name">
-              <input
-                required
-                value={newMeal.title}
-                onChange={(e) => setNewMeal({ ...newMeal, title: e.target.value })}
-                placeholder="e.g. Lemon herb chicken bowl"
-                className="input-admin"
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Price (USD)">
-                <input
-                  required
-                  min="0"
-                  step="0.01"
-                  type="number"
-                  value={newMeal.price}
-                  onChange={(e) => setNewMeal({ ...newMeal, price: e.target.value })}
-                  placeholder="12.00"
-                  className="input-admin"
-                />
-              </Field>
-              <Field label="Type">
-                <select
-                  value={newMeal.type}
-                  onChange={(e) => setNewMeal({ ...newMeal, type: e.target.value as Meal["type"] })}
-                  className="input-admin"
-                >
-                  <option value="Meal">Single</option>
-                  <option value="Combo">Combo</option>
-                </select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Calories">
-                <input
-                  required
-                  min="0"
-                  type="number"
-                  value={newMeal.calories}
-                  onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
-                  placeholder="460"
-                  className="input-admin"
-                />
-              </Field>
-              <Field label="Protein (g)">
-                <input
-                  required
-                  min="0"
-                  type="number"
-                  value={newMeal.protein}
-                  onChange={(e) => setNewMeal({ ...newMeal, protein: e.target.value })}
-                  placeholder="38"
-                  className="input-admin"
-                />
-              </Field>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border pt-4">
-              <button
-                type="button"
-                onClick={() => setAddMeal(false)}
-                className="rounded-sm border border-border px-4 py-2 text-xs font-medium text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button className="rounded-sm bg-lime px-4 py-2 text-xs font-semibold text-foreground">
-                Add meal
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
       {selected && (
         <Modal
           title={`Order ${selected.id}`}
@@ -536,7 +407,7 @@ function AdminPage({ user }: { user: Session }) {
 const descriptions: Record<View, string> = {
   Overview: "",
   Orders: "Review orders, delivery windows and fulfillment progress.",
-  Meals: "Manage menu items and their nutritional information.",
+  Meals: "Manage meals, categories and product inventory.",
   Promotions: "Manage discounts and seasonal offers.",
   Customers: "Find customers, review their history and manage account access.",
   Subscriptions: "Plan upcoming deliveries for your meal subscribers.",
@@ -937,45 +808,6 @@ function EmptyRow({ text, cols }: { text: string; cols: number }) {
     </tr>
   );
 }
-function MealsTable({ meals, onDelete }: { meals: Meal[]; onDelete: (id: string) => void }) {
-  return (
-    <DataTable headers={["Meal", "Price", "Type", "Calories", "Protein", ""]} min="740px">
-      {meals.map((meal, i) => (
-        <tr key={meal.id} className="hover:bg-[#fbfcfa]">
-          <td className="px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-3">
-              <img src={meal.image} className="size-10 rounded-sm object-cover" />
-              <div>
-                <div className="max-w-[260px] truncate text-[13px] font-semibold">{meal.title}</div>
-                <div className="mt-0.5 text-[13px] text-[#a0a9a0]">
-                  SKU · BF-{String(i + 104).padStart(4, "0")}
-                </div>
-              </div>
-            </div>
-          </td>
-          <td className="px-4 py-3 text-[13px] font-medium">{formatUsd(meal.price)}</td>
-          <td className="px-4 py-3">
-            <span className="rounded-md bg-[#f4f6f2] px-2 py-1 text-[13px] text-[#68756a]">
-              {meal.type === "Meal" ? "Single" : "Combo"}
-            </span>
-          </td>
-          <td className="px-4 py-3 text-[14px] text-[#738075]">{meal.calories || "—"} kcal</td>
-          <td className="px-4 py-3 text-[14px] text-[#738075]">{meal.protein || "—"}g</td>
-          <td className="px-4 py-3">
-            <button
-              title="Remove from demo"
-              onClick={() => onDelete(meal.id)}
-              className="rounded-md p-1.5 text-[#9aa49b] hover:bg-[#fff0ed] hover:text-[#c57564]"
-            >
-              <Ellipsis size={16} />
-            </button>
-          </td>
-        </tr>
-      ))}
-      {meals.length === 0 && <EmptyRow text="No matching meals." cols={6} />}
-    </DataTable>
-  );
-}
 function Promotions() {
   const [rows, setRows] = useState([
     { code: "WELCOME15", type: "Percentage", value: "15%", min: "$25.00", active: true, used: 128 },
@@ -1180,13 +1012,5 @@ function Modal({
         {children}
       </section>
     </div>
-  );
-}
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[14px] font-semibold text-[#68746a]">{label}</span>
-      {children}
-    </label>
   );
 }

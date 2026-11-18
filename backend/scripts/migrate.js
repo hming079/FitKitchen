@@ -6,8 +6,14 @@ const pool = require('../src/config/database');
 async function main() {
     const client = await pool.connect();
     try {
-        await client.query(await fs.readFile(path.join(__dirname, '../db/migrations/001_admin_customers.sql'), 'utf8'));
-        console.log('Admin customer migration applied. Existing data retained.');
+        const directory = path.join(__dirname, '../db/migrations');
+        const files = await fs.readdir(directory, { withFileTypes: true });
+        const migrations = files.filter(file => file.isFile() && file.name.endsWith('.sql'))
+            .map(file => file.name).sort();
+        for (const filename of migrations) {
+            await client.query(await fs.readFile(path.join(directory, filename), 'utf8'));
+            console.log('Applied migration:', filename);
+        }
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         throw error;

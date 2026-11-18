@@ -17,11 +17,11 @@ INSERT INTO meal_categories (name, description) VALUES
 ('Bulking', 'Khẩu phần lớn, nhiều protein và carbs để tăng cơ bắp');
 
 -- 4. Thêm Meals
-INSERT INTO meals (category_id, name, description, image_url, price, calories, protein_g, carbs_g, fat_g, meal_type, is_available) VALUES
-(1, 'Ức gà nướng măng tây', 'Ức gà nướng mềm áp chảo ăn kèm măng tây và gạo lứt', 'https://example.com/img/uc-ga-mang-tay.jpg', 65000, 450, 40, 45, 10, 'SINGLE', TRUE),
-(3, 'Bò sốt tiêu đen', 'Thăn bò xào tiêu đen đậm đà, kèm khoai tây nghiền', 'https://example.com/img/bo-tieu-den.jpg', 95000, 600, 50, 55, 15, 'SINGLE', TRUE),
-(2, 'Cá hồi áp chảo sốt chanh', 'Cá hồi Na Uy áp chảo với sốt chanh bơ', 'https://example.com/img/ca-hoi.jpg', 120000, 500, 35, 10, 30, 'SINGLE', TRUE),
-(1, 'Combo 7 ngày Giảm Cân', 'Gói ăn 7 ngày bao gồm 14 bữa (trưa và tối) thiết kế chuẩn y khoa', 'https://example.com/img/combo-7-days.jpg', 850000, 1500, 120, 100, 40, 'COMBO_7_DAYS', TRUE);
+INSERT INTO meals (category_id, name, description, image_url, price, calories, protein_g, carbs_g, fat_g, meal_type, goal_type, allergen_info, is_available) VALUES
+(1, 'Ức gà nướng măng tây', 'Ức gà nướng mềm áp chảo ăn kèm măng tây và gạo lứt', 'https://example.com/img/uc-ga-mang-tay.jpg', 65000, 450, 40, 45, 10, 'SINGLE', 'CUT', NULL, TRUE),
+(3, 'Bò sốt tiêu đen', 'Thăn bò xào tiêu đen đậm đà, kèm khoai tây nghiền', 'https://example.com/img/bo-tieu-den.jpg', 95000, 600, 50, 55, 15, 'SINGLE', 'BULK', 'Sữa', TRUE),
+(2, 'Cá hồi áp chảo sốt chanh', 'Cá hồi Na Uy áp chảo với sốt chanh bơ', 'https://example.com/img/ca-hoi.jpg', 120000, 500, 35, 10, 30, 'SINGLE', 'MAINTAIN', 'Cá, sữa', TRUE),
+(1, 'Combo 7 ngày Giảm Cân', 'Gói ăn 7 ngày bao gồm 14 bữa (trưa và tối) thiết kế chuẩn y khoa', 'https://example.com/img/combo-7-days.jpg', 850000, 1500, 120, 100, 40, 'COMBO_7_DAYS', 'CUT', 'Cá, sữa', TRUE);
 
 -- 5. Thêm Promotions
 INSERT INTO promotions (code, discount_type, discount_value, min_order_amount, is_active) VALUES
@@ -65,11 +65,11 @@ INSERT INTO subscription_deliveries (subscription_id, address_id, delivery_date,
 (2, 2, '2026-11-15', '18:00 - 19:00', 'SCHEDULED', 'Gọi trước khi giao');
 
 -- 13. Thêm Meal Customization Options
-INSERT INTO meal_customization_options (meal_id, name, description, price_adjustment, is_available) VALUES
-(1, 'Up-size 50g ức gà', 'Thêm 50g ức gà nướng', 20000, TRUE),
-(1, 'Thêm bơ', 'Thêm một phần bơ quả', 10000, TRUE),
-(2, 'Up-size 100g thịt bò', 'Thêm 100g thăn bò', 35000, TRUE),
-(3, 'Đổi sốt chanh', 'Đổi sang sốt chanh ít béo', 0, TRUE);
+INSERT INTO meal_customization_options (meal_id, name, description, price_adjustment, calories_adjustment, protein_g_adjustment, carbs_g_adjustment, fat_g_adjustment, is_available) VALUES
+(1, 'Up-size 50g ức gà', 'Thêm 50g ức gà nướng', 20000, 80, 16, 0, 2, TRUE),
+(1, 'Thêm bơ', 'Thêm một phần bơ quả', 10000, 80, 1, 4, 7.5, TRUE),
+(2, 'Up-size 100g thịt bò', 'Thêm 100g thăn bò', 35000, 200, 29, 0, 9, TRUE),
+(3, 'Đổi sốt chanh', 'Đổi sang sốt chanh ít béo', 0, -45, 0, 0, -5, TRUE);
 
 -- 14. Thêm Cart Item Customizations
 INSERT INTO cart_item_customizations (cart_item_id, option_id, quantity) VALUES
