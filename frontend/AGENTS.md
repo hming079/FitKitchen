@@ -31,7 +31,7 @@ use the editor.
 
 ## Project architecture
 
-- Keep storefront reads and cart mutations in dedicated browser-side modules, and derive checkout links only from Shopify Storefront API cart responses so purchase state stays real and synchronized.
+- Read the FitKitchen menu (`/api/meals`) through a public browser-side module. Keep cart and checkout on Shopify Storefront API cart responses and catalog meal ordering visibly disabled until the backend cart exists.
 - Keep subscription selection and meal add-on estimates as clearly labeled client-side previews until real Shopify subscription and add-on products are configured; checkout must include only actual Shopify cart items.
 - Keep operations management on a separate `/admin` route, with demo records isolated from customer-facing Shopify catalog and cart flows.
 

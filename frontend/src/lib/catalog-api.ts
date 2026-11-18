@@ -205,6 +205,8 @@ const mealPath = (mealId: string) => `/meals/${encodeURIComponent(mealId)}`;
 const optionsPath = (mealId: string) => `${mealPath(mealId)}/customizations`;
 const productPath = (productId: string) => `/products/${encodeURIComponent(productId)}`;
 
+export { categorySchema, mealSchema, optionSchema, pageResult, result, withQuery };
+
 export const catalogApi = {
   listMeals: (filters: MealFilters, signal?: AbortSignal) =>
     request(withQuery("/meals/manage", filters), pageResult(mealSchema), {
