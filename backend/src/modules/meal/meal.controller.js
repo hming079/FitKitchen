@@ -1,59 +1,20 @@
 const mealService = require("./meal.service");
-const {
-    mealTypes,
-    validateId,
-    validateMealPayload
-} = require("./meal.validation");
-
-function sendValidationError(res, errors) {
-    return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-        errors
-    });
-}
+const { validateId, validateMealListQuery, validateMealPayload } = require("./meal.validation");
+const { validateCatalogId } = require("./catalog.validation");
+const { validateOptionPayload } = require("./option.validation");
+const { validationError, notFound, conflict } = require("./catalog.responses");
 
 class MealController {
-    async list(req, res) {
-        const categoryId = req.query.category_id === undefined
-            ? undefined
-            : validateId(req.query.category_id);
-
-        if (req.query.category_id !== undefined && categoryId === null) {
-            return sendValidationError(res, ["category_id must be a positive integer"]);
-        }
-
-        if (req.query.available !== undefined &&
-            req.query.available !== "true" && req.query.available !== "false") {
-            return sendValidationError(res, ["available must be true or false"]);
-        }
-
-        if (req.query.meal_type !== undefined && !mealTypes.has(req.query.meal_type)) {
-            return sendValidationError(res, [
-                "meal_type must be SINGLE, COMBO_7_DAYS, or TOPPING"
-            ]);
-        }
-
-        try {
-            const meals = await mealService.list({
-                search: typeof req.query.search === "string" ? req.query.search.trim() : undefined,
-                categoryId,
-                mealType: req.query.meal_type,
-                available: req.query.available === undefined
-                    ? undefined
-                    : req.query.available === "true"
-            });
-            return res.json({ success: true, data: meals });
-        } catch (error) {
-            console.error("Error listing meals:", error);
-            return res.status(500).json({ success: false, message: "Internal server error" });
-        }
+    async list(req, res, manage = false) {
+        const { data, errors } = validateMealListQuery(req.query, manage);
+        if (errors.length) return validationError(res, errors);
+        return res.json({ success: true, ...await mealService.list(data) });
     }
 
     async getById(req, res) {
         const id = validateId(req.params.id);
         if (id === null) {
-            return sendValidationError(res, ["id must be a positive integer"]);
+            return validationError(res, ["id must be a positive integer"]);
         }
 
         try {
@@ -63,43 +24,67 @@ class MealController {
             }
             return res.json({ success: true, data: meal });
         } catch (error) {
-            console.error(`Error getting meal ${id}:`, error);
+            console.error(`Error getting meal ${id}:`, error.code || error.name);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
 
-    async getCustomizations(req, res) {
+    async getCustomizations(req, res, manage = false) {
         const id = validateId(req.params.id);
-        if (id === null) {
-            return sendValidationError(res, ["id must be a positive integer"]);
-        }
+        if (id === null) return validationError(res, ["id must be a positive integer"]);
 
+        const options = await mealService.getCustomizations(id, manage);
+        if (options === null) return notFound(res, "Meal");
+        return res.json({ success: true, data: options });
+    }
+
+    async createCustomization(req, res) {
+        const id = validateId(req.params.id);
+        if (id === null) return validationError(res, ["id must be a positive integer"]);
+        const { data, errors } = validateOptionPayload(req.body);
+        if (errors.length) return validationError(res, errors);
         try {
-            const meal = await mealService.findById(id);
-            if (!meal) {
-                return res.status(404).json({ success: false, message: "Meal not found" });
-            }
-            return res.json({
-                success: true,
-                data: await mealService.getCustomizations(id)
-            });
+            const option = await mealService.createCustomization(id, data);
+            return res.status(201).json({ success: true, data: option });
         } catch (error) {
-            console.error(`Error getting customizations for meal ${id}:`, error);
-            return res.status(500).json({ success: false, message: "Internal server error" });
+            if (error.code === "23503") return notFound(res, "Meal");
+            if (error.code === "23505") return conflict(res, "OPTION_NAME_TAKEN", "Option name is already in use for this meal");
+            throw error;
+        }
+    }
+
+    async updateCustomization(req, res, archive = false) {
+        const id = validateId(req.params.id);
+        const optionId = validateCatalogId(req.params.optionId);
+        if (id === null || optionId === null) {
+            return validationError(res, [`${id === null ? "id" : "optionId"} must be a positive integer`]);
+        }
+        const { data, errors } = archive
+            ? { data: { is_available: false }, errors: [] }
+            : validateOptionPayload(req.body, { partial: true });
+        if (errors.length) return validationError(res, errors);
+        try {
+            const option = await mealService.updateCustomization(id, optionId, data);
+            if (!option) return notFound(res, "Option");
+            return res.json({ success: true, data: option });
+        } catch (error) {
+            if (error.code === "23505") return conflict(res, "OPTION_NAME_TAKEN", "Option name is already in use for this meal");
+            throw error;
         }
     }
 
     async create(req, res) {
         const { data, errors } = validateMealPayload(req.body);
         if (errors.length > 0) {
-            return sendValidationError(res, errors);
+            return validationError(res, errors);
         }
 
         try {
             const meal = await mealService.create(data);
             return res.status(201).json({ success: true, data: meal });
         } catch (error) {
-            console.error("Error creating meal:", error);
+            if (error.code === "23503") return validationError(res, ["category_id does not reference an existing category"]);
+            console.error("Error creating meal:", error.code || error.name);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
@@ -107,12 +92,12 @@ class MealController {
     async update(req, res) {
         const id = validateId(req.params.id);
         if (id === null) {
-            return sendValidationError(res, ["id must be a positive integer"]);
+            return validationError(res, ["id must be a positive integer"]);
         }
 
         const { data, errors } = validateMealPayload(req.body, { partial: true });
         if (errors.length > 0) {
-            return sendValidationError(res, errors);
+            return validationError(res, errors);
         }
 
         try {
@@ -122,7 +107,8 @@ class MealController {
             }
             return res.json({ success: true, data: meal });
         } catch (error) {
-            console.error(`Error updating meal ${id}:`, error);
+            if (error.code === "23503") return validationError(res, ["category_id does not reference an existing category"]);
+            console.error(`Error updating meal ${id}:`, error.code || error.name);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
@@ -130,7 +116,7 @@ class MealController {
     async archive(req, res) {
         const id = validateId(req.params.id);
         if (id === null) {
-            return sendValidationError(res, ["id must be a positive integer"]);
+            return validationError(res, ["id must be a positive integer"]);
         }
 
         try {
@@ -140,7 +126,7 @@ class MealController {
             }
             return res.json({ success: true, data: meal });
         } catch (error) {
-            console.error(`Error archiving meal ${id}:`, error);
+            console.error(`Error archiving meal ${id}:`, error.code || error.name);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }

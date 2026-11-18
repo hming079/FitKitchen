@@ -1,38 +1,43 @@
 const pool = require("../../config/database");
+const { listPage } = require("./catalog.service");
+const { mealSorts, writableFields } = require("./meal.validation");
+const { optionFields } = require("./option.validation");
 
 const mealColumns = `
     id, category_id, name, description, image_url, price, calories,
     protein_g, carbs_g, fat_g, meal_type, is_available, created_at, updated_at
 `;
 
+const optionColumns = "id, meal_id, name, description, price_adjustment, is_available, created_at";
+const mealFilters = {
+    category_id: "category_id =",
+    meal_type: "meal_type =",
+    min_calories: "calories >=",
+    max_calories: "calories <=",
+    min_protein: "protein_g >=",
+    max_protein: "protein_g <=",
+    available: "is_available ="
+};
+
 class MealService {
-    async list({ search, categoryId, mealType, available }) {
+    list(filters) {
         const values = [];
         const conditions = [];
 
-        if (search) {
-            values.push(`%${search}%`);
+        if (filters.search) {
+            values.push(`%${filters.search}%`);
             conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
         }
-        if (categoryId !== undefined) {
-            values.push(categoryId);
-            conditions.push(`category_id = $${values.length}`);
-        }
-        if (mealType) {
-            values.push(mealType);
-            conditions.push(`meal_type = $${values.length}`);
-        }
-        if (available !== undefined) {
-            values.push(available);
-            conditions.push(`is_available = $${values.length}`);
+        for (const [field, expression] of Object.entries(mealFilters)) {
+            if (filters[field] === undefined) continue;
+            values.push(filters[field]);
+            conditions.push(`${expression} $${values.length}`);
         }
 
-        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-        const result = await pool.query(
-            `SELECT ${mealColumns} FROM meals ${where} ORDER BY id`,
-            values
-        );
-        return result.rows;
+        return listPage({
+            table: "meals", columns: mealColumns, conditions, values,
+            order: mealSorts[filters.sort], page: filters.page, page_size: filters.page_size
+        });
     }
 
     async findById(id) {
@@ -43,19 +48,46 @@ class MealService {
         return result.rows[0];
     }
 
-    async getCustomizations(id) {
-        const result = await pool.query(
-            `SELECT id, meal_id, name, description, price_adjustment, is_available, created_at
-             FROM meal_customization_options
-             WHERE meal_id = $1
-             ORDER BY id`,
-            [id]
+    async getCustomizations(id, manage) {
+        const { rows } = await pool.query(
+            `SELECT options.id, options.meal_id, options.name, options.description,
+                    options.price_adjustment, options.is_available, options.created_at
+             FROM meals
+             LEFT JOIN meal_customization_options AS options
+                 ON options.meal_id = meals.id AND ($2 OR options.is_available = TRUE)
+             WHERE meals.id = $1
+             ORDER BY options.id`,
+            [id, manage]
         );
-        return result.rows;
+        return rows.length ? rows.filter(option => option.id !== null) : null;
+    }
+
+    async createCustomization(id, data) {
+        const fields = Object.keys(optionFields).filter(field => Object.hasOwn(data, field));
+        const values = [id, ...fields.map(field => data[field])];
+        const placeholders = values.map((value, index) => `$${index + 1}`);
+        const { rows } = await pool.query(
+            `INSERT INTO meal_customization_options (meal_id, ${fields.join(", ")})
+             VALUES (${placeholders.join(", ")}) RETURNING ${optionColumns}`,
+            values
+        );
+        return rows[0];
+    }
+
+    async updateCustomization(id, optionId, data) {
+        const fields = Object.keys(optionFields).filter(field => Object.hasOwn(data, field));
+        const values = [id, optionId, ...fields.map(field => data[field])];
+        const assignments = fields.map((field, index) => `${field} = $${index + 3}`);
+        const { rows } = await pool.query(
+            `UPDATE meal_customization_options SET ${assignments.join(", ")}
+             WHERE meal_id = $1 AND id = $2 RETURNING ${optionColumns}`,
+            values
+        );
+        return rows[0];
     }
 
     async create(data) {
-        const fields = Object.keys(data);
+        const fields = writableFields.filter(field => Object.hasOwn(data, field));
         const values = fields.map((field) => data[field]);
         const placeholders = fields.map((field, index) => `$${index + 1}`);
         const result = await pool.query(
@@ -68,7 +100,7 @@ class MealService {
     }
 
     async update(id, data) {
-        const fields = Object.keys(data);
+        const fields = writableFields.filter(field => Object.hasOwn(data, field));
         const values = fields.map((field) => data[field]);
         const assignments = fields.map((field, index) => `${field} = $${index + 1}`);
         values.push(id);
