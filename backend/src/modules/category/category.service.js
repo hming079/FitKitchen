@@ -3,9 +3,11 @@ const { categoryFields } = require("./category.validation");
 
 async function list() {
     const { rows } = await pool.query(
-        `SELECT categories.id, categories.name, categories.description, COUNT(meals.id)::int AS meal_count
+        `SELECT categories.id, categories.name, categories.description,
+                (COUNT(meals.id) FILTER (WHERE meals.is_available = TRUE))::int AS meal_count,
+                COUNT(meals.id)::int AS total_meal_count
          FROM meal_categories AS categories
-         LEFT JOIN meals ON meals.category_id = categories.id AND meals.is_available = TRUE
+         LEFT JOIN meals ON meals.category_id = categories.id
          GROUP BY categories.id
          ORDER BY categories.name`
     );
@@ -44,9 +46,9 @@ async function remove(id) {
         const category = await client.query("SELECT id FROM meal_categories WHERE id = $1 FOR UPDATE", [id]);
         let result;
         if (category.rowCount) {
-            const { rows } = await client.query("SELECT COUNT(*)::int AS meal_count FROM meals WHERE category_id = $1", [id]);
+            const { rows } = await client.query("SELECT COUNT(*)::int AS total_meal_count FROM meals WHERE category_id = $1", [id]);
             result = rows[0];
-            if (result.meal_count === 0) {
+            if (result.total_meal_count === 0) {
                 const deleted = await client.query("DELETE FROM meal_categories WHERE id = $1 RETURNING id", [id]);
                 result = deleted.rows[0];
             }

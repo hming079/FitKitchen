@@ -14,10 +14,13 @@ import { menuApi, MenuApiError } from "@/lib/menu-api";
 export const Route = createFileRoute("/meal/$id")({
   ssr: false,
   loader: async ({ params, abortController }) => {
+    if (!/^\d+$/.test(params.id)) return null;
+
     try {
       return (await menuApi.getMeal(params.id, abortController.signal)).data;
     } catch (error) {
-      if (error instanceof MenuApiError && error.status === 404) return null;
+      if (error instanceof MenuApiError && (error.status === 400 || error.status === 404))
+        return null;
       throw error;
     }
   },

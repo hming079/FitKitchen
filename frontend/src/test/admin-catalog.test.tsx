@@ -8,7 +8,7 @@ const meal = {
   category_id: null,
   name: "Grilled chicken",
   description: null,
-  image_url: null,
+  image_url: " /images/chicken.jpg ",
   price: "95000.00",
   calories: "480.00",
   protein_g: "42.50",
@@ -31,7 +31,13 @@ const option = {
   fat_g_adjustment: "0.00",
   is_available: true,
 };
-const category = { id: "2", name: "Chicken", description: null, meal_count: 1 };
+const category = {
+  id: "2",
+  name: "Chicken",
+  description: null,
+  meal_count: 0,
+  total_meal_count: 3,
+};
 const product = {
   id: "3",
   name: "Whey mix",
@@ -126,6 +132,7 @@ it("lists meal goals and VND prices and sends the selected goal filter", async (
   expect(row).toHaveTextContent("480 kcal");
   expect(row).toHaveTextContent("42.5 g");
   expect(within(row).getByRole("cell", { name: "Cut" })).toBeVisible();
+  expect(within(row).getByAltText("")).toHaveAttribute("src", "/images/chicken.jpg");
   expect(row).toHaveTextContent("On sale");
   choose(screen.getByRole("combobox", { name: "Goal" }), "Cut");
   await waitFor(() => {
@@ -192,15 +199,21 @@ it("displays option macro changes and submits signed numeric edits and zero", as
   });
 });
 
-it("shows a recoverable error when backend validation returns 400 without a code", async () => {
+it("shows the validation issue and keeps entered values for correction", async () => {
   show(() =>
-    json({ success: false, message: "Validation failed", errors: ["name is required"] }, 400),
+    json(
+      {
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Validation failed",
+        errors: ["name is required"],
+      },
+      400,
+    ),
   );
   const dialog = await fillMeal();
   fireEvent.click(within(dialog).getByRole("button", { name: "Add meal" }));
-  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-    "Check the fields and try again.",
-  );
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("name is required");
   expect(within(dialog).getByLabelText("Meal name")).toHaveValue(" New meal ");
 });
 
@@ -211,19 +224,25 @@ it("shows the server's count when category deletion is blocked", async () => {
         success: false,
         code: "CATEGORY_IN_USE",
         message: "Category is still referenced by meals",
-        meal_count: 3,
+        total_meal_count: 3,
       },
       409,
     ),
   );
   show(write);
   selectTab("Categories");
-  fireEvent.click(await screen.findByRole("button", { name: "Delete Chicken" }));
+  const table = within(await screen.findByRole("table", { name: "Meal categories" }));
+  expect(table.getByRole("columnheader", { name: "Meals on sale" })).toBeVisible();
+  expect(table.getByRole("columnheader", { name: "Total meals" })).toBeVisible();
+  const row = within(table.getByRole("row", { name: /Chicken/ }));
+  expect(row.getByRole("cell", { name: "0" })).toBeVisible();
+  expect(row.getByRole("cell", { name: "3" })).toBeVisible();
+  fireEvent.click(row.getByRole("button", { name: "Delete Chicken" }));
   const dialog = screen.getByRole("alertdialog", { name: "Delete category" });
   expect(write).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete category" }));
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-    "3 meals still use this category. Move them to another category first.",
+    "3 meals (including paused ones) still use this category. Move them to another category first.",
   );
 });
 

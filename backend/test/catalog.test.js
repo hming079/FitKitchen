@@ -2,7 +2,8 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { validateCategoryPayload } = require("../src/modules/category/category.validation");
 const { validateProductListQuery, validateProductPayload, validateStockAdjustment } = require("../src/modules/product/product.validation");
-const { validateMealListQuery, validateMealPayload } = require("../src/modules/meal/meal.validation");
+const { validateId, validateMealListQuery, validateMealPayload } = require("../src/modules/meal/meal.validation");
+const { catalogSearchPattern } = require("../src/modules/meal/catalog.service");
 const { validateOptionPayload } = require("../src/modules/meal/option.validation");
 
 test("category requires a trimmed, bounded name and allows clearing the description", () => {
@@ -100,6 +101,62 @@ test("meal filters validate ranges, query types, sort and bounded pagination", (
         errors: []
     });
     assert.equal(validateMealPayload({ category_id: "9007199254740993" }, { partial: true }).data.category_id, "9007199254740993");
+});
+
+test("meal amounts accept decimal strings and enforce each numeric column's bounds", () => {
+    const data = { name: "Bento", price: 9999999999.99, calories: 999999.99, protein_g: 0.5, carbs_g: 0, fat_g: 12 };
+    const payload = { ...data, price: "9999999999.99", protein_g: ".5", carbs_g: "0" };
+    assert.deepEqual(validateMealPayload(payload), { data, errors: [] });
+    assert.deepEqual(validateMealPayload({ price: "65000" }, { partial: true }), { data: { price: 65000 }, errors: [] });
+
+    for (const field of ["price", "calories", "protein_g", "carbs_g", "fat_g"]) {
+        const max = field === "price" ? 9999999999.99 : 999999.99;
+        for (const invalid of [null, "", "  ", true, [], {}, Infinity, NaN, "0x10", "1e2", -1, `-0.${"0".repeat(330)}1`]) {
+            const error = [`${field} must be a non-negative number`];
+            assert.deepEqual(validateMealPayload({ ...payload, [field]: invalid }).errors, error);
+            assert.deepEqual(validateMealPayload({ [field]: invalid }, { partial: true }).errors, error);
+        }
+        for (const over of [max + 0.01, `${max}0000000000001`]) {
+            assert.deepEqual(validateMealPayload({ [field]: over }, { partial: true }).errors, [
+                `${field} must be at most ${max}`
+            ]);
+        }
+        assert.deepEqual(validateMealPayload({ [field]: `${max}000` }, { partial: true }), {
+            data: { [field]: max }, errors: []
+        });
+    }
+});
+
+test("meal identifiers and category filters require decimal integer syntax", () => {
+    for (const invalid of ["0x1", "1e0", "1.0", " 1", "1 ", "1\n", "0", "9223372036854775808", true, ["1"]]) {
+        assert.equal(validateId(invalid), null);
+        assert.ok(validateMealListQuery({ category_id: invalid }).errors.length);
+        assert.ok(validateMealPayload({ category_id: invalid }, { partial: true }).errors.length);
+    }
+    assert.equal(validateId("001"), "1");
+    assert.equal(validateId(1), null);
+    assert.equal(validateMealListQuery({ category_id: "001" }).data.category_id, "1");
+    for (const category_id of [1, "9223372036854775807", null]) {
+        assert.deepEqual(validateMealPayload({ category_id }, { partial: true }), { data: { category_id }, errors: [] });
+    }
+});
+
+test("catalog search folds Vietnamese accents and escapes LIKE metacharacters", () => {
+    for (const keyword of ["ỨC GÀ ĐẬU", "ức gà đậu".normalize("NFD"), "uc ga dau"]) {
+        assert.equal(catalogSearchPattern(keyword), "%uc ga dau%");
+    }
+    assert.equal(catalogSearchPattern("Ức_%\\"), String.raw`%uc\_\%\\%`);
+    assert.equal(catalogSearchPattern("\u0301"), "%\u0301%");
+});
+
+test("meal descriptions and image URLs reject embedded NUL characters but accept null", () => {
+    const partial = { partial: true };
+    for (const field of ["description", "image_url"]) {
+        const invalid = validateMealPayload({ [field]: "before\0after" }, partial);
+        assert.deepEqual(invalid.errors, [`${field} must be a string without NUL characters or null`]);
+    }
+    const data = { description: null, image_url: null };
+    assert.deepEqual(validateMealPayload(data, partial), { data, errors: [] });
 });
 
 test("meal accepts valid goals and bounded allergen text, or null to clear either field", () => {

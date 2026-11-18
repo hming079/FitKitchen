@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACCESS_TOKEN_KEY, api, ApiError } from "@/lib/admin-api";
+import { ACCESS_TOKEN_KEY, ApiError } from "@/lib/admin-api";
 
 const id = z.string().regex(/^[1-9]\d*$/);
 const text = z.string().nullable();
@@ -20,7 +20,10 @@ export const goalTypes = ["BULK", "CUT", "MAINTAIN"] as const;
 const goalType = z.enum(goalTypes);
 
 const categoryRecord = z.object({ id, name: z.string(), description: text });
-const categorySchema = categoryRecord.extend({ meal_count: z.number().int().nonnegative() });
+const categorySchema = categoryRecord.extend({
+  meal_count: z.number().int().nonnegative(),
+  total_meal_count: z.number().int().nonnegative(),
+});
 const mealSchema = z.object({
   id,
   category_id: id.nullable(),
@@ -130,24 +133,59 @@ function parseResult<T extends z.ZodTypeAny>(schema: T, body: unknown): z.output
   return parsed.data;
 }
 
+const catalogError = z.object({
+  code: z.string().optional(),
+  message: z.string().optional(),
+  errors: z.array(z.string()).optional(),
+  meal_count: z.number().int().positive().optional(),
+  total_meal_count: z.number().int().positive().optional(),
+});
+
 async function request<T extends z.ZodTypeAny>(
   path: string,
   schema: T,
-  options?: RequestInit,
+  options: RequestInit = {},
 ): Promise<z.output<T>> {
-  let body: unknown;
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  let response: Response;
   try {
-    body = await api(path, z.unknown(), options);
+    response = await fetch(`${import.meta.env["VITE_API_BASE_URL"] || ""}/api${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 400 && error.code === "REQUEST_FAILED")
-      throw new ApiError(
-        "Some catalog values were rejected. Check the fields and try again.",
-        400,
-        error.code,
-      );
-    throw error;
+    if (options.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
+      throw error;
+    throw new ApiError("Could not reach the server. Please try again.", 0, "NETWORK_ERROR");
   }
-  return parseResult(schema, body);
+  const body: unknown = await response.json().catch((error: unknown) => {
+    if (options.signal?.aborted) throw error;
+    return null;
+  });
+  if (response.ok) return parseResult(schema, body);
+
+  const detail = catalogError.safeParse(body).data;
+  const code = detail?.code ?? "REQUEST_FAILED";
+  let message = detail?.message ?? "The request failed. Please try again.";
+  if (response.status === 400) {
+    message = detail?.errors?.[0] ?? message;
+  } else if (response.status === 409 && code === "CATEGORY_IN_USE") {
+    const count = detail?.total_meal_count ?? detail?.meal_count;
+    const reference = count ? `${count} ${count === 1 ? "meal" : "meals"}` : "Meals";
+    const verb = count === 1 ? "uses" : "use";
+    message = `${reference} (including paused ones) still ${verb} this category. Move them to another category first.`;
+  }
+  if (
+    (response.status === 401 || code === "ACCOUNT_LOCKED") &&
+    token === sessionStorage.getItem(ACCESS_TOKEN_KEY) &&
+    !options.signal?.aborted
+  ) {
+    window.dispatchEvent(new CustomEvent("fitkitchen:session-invalid", { detail: message }));
+  }
+  throw new ApiError(message, response.status, code);
 }
 
 function write<T extends z.ZodTypeAny>(
@@ -157,48 +195,6 @@ function write<T extends z.ZodTypeAny>(
   body?: object,
 ) {
   return request(path, result(schema), { method, body: JSON.stringify(body) });
-}
-
-const categoryDeleteError = z.object({
-  code: z.string(),
-  message: z.string(),
-  meal_count: z.number().int().positive().optional(),
-});
-
-// This endpoint reports the exact reference count in its error body, which api() does not expose.
-async function deleteCategory(categoryId: string) {
-  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
-  let response: Response;
-  try {
-    response = await fetch(
-      `${import.meta.env["VITE_API_BASE_URL"] || ""}/api/meal-categories/${encodeURIComponent(categoryId)}`,
-      { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} },
-    );
-  } catch {
-    throw new ApiError("Could not reach the server. Please try again.", 0, "NETWORK_ERROR");
-  }
-  const body: unknown = await response.json().catch(() => null);
-  if (response.ok) return parseResult(result(z.object({ id })), body);
-
-  const parsed = categoryDeleteError.safeParse(body);
-  const code = parsed.success ? parsed.data.code : "REQUEST_FAILED";
-  let message = parsed.success
-    ? parsed.data.message
-    : "Could not delete category. Please try again.";
-  if (response.status === 409 && code === "CATEGORY_IN_USE") {
-    const count = parsed.success ? parsed.data.meal_count : undefined;
-    const reference = count
-      ? `${count} ${count === 1 ? "meal still uses" : "meals still use"}`
-      : "Meals still use";
-    message = `${reference} this category. Move them to another category first.`;
-  }
-  if (
-    (response.status === 401 || code === "ACCOUNT_LOCKED") &&
-    token === sessionStorage.getItem(ACCESS_TOKEN_KEY)
-  ) {
-    window.dispatchEvent(new CustomEvent("fitkitchen:session-invalid", { detail: message }));
-  }
-  throw new ApiError(message, response.status, code);
 }
 
 const mealPath = (mealId: string) => `/meals/${encodeURIComponent(mealId)}`;
@@ -227,12 +223,13 @@ export const catalogApi = {
   archiveOption: (mealId: string, id: string) =>
     write(`${optionsPath(mealId)}/${encodeURIComponent(id)}`, optionSchema, "DELETE"),
   listCategories: (signal?: AbortSignal) =>
-    api("/meal-categories", result(z.array(categorySchema)), { signal: signal ?? null }),
+    request("/meal-categories", result(z.array(categorySchema)), { signal: signal ?? null }),
   createCategory: (fields: CategoryFields) =>
     write("/meal-categories", categoryRecord, "POST", fields),
   updateCategory: (id: string, fields: Partial<CategoryFields>) =>
     write(`/meal-categories/${encodeURIComponent(id)}`, categoryRecord, "PATCH", fields),
-  deleteCategory,
+  deleteCategory: (idToDelete: string) =>
+    write(`/meal-categories/${encodeURIComponent(idToDelete)}`, z.object({ id }), "DELETE"),
   listProducts: (filters: ProductFilters, signal?: AbortSignal) =>
     request(withQuery("/products/manage", filters), pageResult(productSchema), {
       signal: signal ?? null,

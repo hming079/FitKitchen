@@ -219,7 +219,9 @@ it("shows a rejected request without displaying sample previews", async () => {
 it("shows meal details and compares original with adjusted price and all four macros", async () => {
   const fetch = mockFetch(({ pathname }) => {
     if (pathname === "/api/meal-categories")
-      return result([{ id: "2", name: "Eat Clean", description: null, meal_count: 1 }]);
+      return result([
+        { id: "2", name: "Eat Clean", description: null, meal_count: 1, total_meal_count: 1 },
+      ]);
     if (pathname.endsWith("/customizations"))
       return result([
         extraChicken,
@@ -257,6 +259,39 @@ it("shows meal details and compares original with adjusted price and all four ma
   expect(fetch.mock.calls.every(([path]) => path.includes("/api/"))).toBe(true);
 });
 
+it("floors customized prices and all four macros at zero", async () => {
+  const smaller = {
+    ...extraChicken,
+    name: "Smaller portion",
+    price_adjustment: "-66000.00",
+    calories_adjustment: "-500.00",
+    protein_g_adjustment: "-41.00",
+    carbs_g_adjustment: "-46.00",
+    fat_g_adjustment: "-11.00",
+  };
+  mockFetch(({ pathname }) =>
+    pathname.endsWith("/customizations")
+      ? result([smaller])
+      : result({ ...meal, category_id: null }),
+  );
+  await show(`/meal/${meal.id}`);
+  fireEvent.click(await screen.findByRole("checkbox", { name: smaller.name }));
+  const status = screen.getByText(/Customized per meal\./);
+  expect(status.textContent).toBe(
+    `Customized per meal. Price ${vnd(0)}, Calories 0 kcal, Protein 0 g, Carbs 0 g, Fat 0 g`,
+  );
+  const rows = within(screen.getByRole("table", { name: "Price and nutrition" })).getAllByRole(
+    "row",
+  );
+  expect(rows.slice(1).map((row) => within(row).getAllByRole("cell").at(-1)?.textContent)).toEqual([
+    vnd(0),
+    "0 kcal",
+    "0 g",
+    "0 g",
+    "0 g",
+  ]);
+});
+
 it("marks a paused meal unavailable and does not fetch options for it", async () => {
   const fetch = mockFetch(() => result({ ...meal, category_id: null, is_available: false }));
   await show(`/meal/${meal.id}`);
@@ -265,9 +300,22 @@ it("marks a paused meal unavailable and does not fetch options for it", async ()
   expect(fetch).toHaveBeenCalledOnce();
 });
 
-it("offers a link back to the menu when the meal API returns 404", async () => {
-  mockFetch(() => json({}, 404));
-  await show("/meal/999");
+it("shows meal not found for a nonnumeric route without calling the API", async () => {
+  const fetch = mockFetch(() => json({}, 400));
+  await show("/meal/abc");
   expect(await screen.findByRole("heading", { name: "Meal not found." })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Back to the menu" })).toHaveAttribute("href", "/#menu");
+  expect(fetch).not.toHaveBeenCalled();
 });
+
+it.each([400, 404])(
+  "offers a link back to the menu when the meal API returns %i",
+  async (status) => {
+    mockFetch(() => json({}, status));
+    await show("/meal/999");
+    expect(await screen.findByRole("heading", { name: "Meal not found." })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back to the menu" })).toHaveAttribute(
+      "href",
+      "/#menu",
+    );
+  },
+);

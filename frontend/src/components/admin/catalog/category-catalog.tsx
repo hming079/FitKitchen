@@ -31,7 +31,7 @@ export function CategoryCatalog() {
       >
         <CatalogTable
           name="Meal categories"
-          columns={["Name", "Description", "Meals on sale", "Actions"]}
+          columns={["Name", "Description", "Meals on sale", "Total meals", "Actions"]}
         >
           {categories.data?.data.map((item) => (
             <TableRow key={item.id}>
@@ -42,6 +42,7 @@ export function CategoryCatalog() {
                 {item.description || "—"}
               </TableCell>
               <TableCell className="tabular-nums">{item.meal_count}</TableCell>
+              <TableCell className="tabular-nums">{item.total_meal_count}</TableCell>
               <TableCell>
                 <div className="flex gap-2">
                   <Button

@@ -22,7 +22,7 @@ const page = (data: unknown[]) => ({
   data,
   pagination: { page: 2, page_size: 20, total: 21, total_pages: 2 },
 });
-const json = (body: unknown) => new Response(JSON.stringify(body));
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -113,4 +113,31 @@ it("rejects malformed numeric strings instead of displaying zero", async () => {
     vi.fn(async () => json(page([{ ...meal, price: "" }]))),
   );
   await expect(catalogApi.listMeals({})).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+});
+
+it("preserves specific validation issues and resource not-found messages", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      json(
+        {
+          code: "VALIDATION_ERROR",
+          message: "Validation failed",
+          errors: ["price must be a non-negative number"],
+        },
+        400,
+      ),
+    )
+    .mockResolvedValueOnce(json({ code: "NOT_FOUND", message: "Category not found" }, 404));
+  vi.stubGlobal("fetch", fetch);
+  await expect(catalogApi.updateMeal(meal.id, { price: -1 })).rejects.toMatchObject({
+    code: "VALIDATION_ERROR",
+    status: 400,
+    message: "price must be a non-negative number",
+  });
+  await expect(catalogApi.updateCategory("2", { name: "New name" })).rejects.toMatchObject({
+    code: "NOT_FOUND",
+    status: 404,
+    message: "Category not found",
+  });
 });

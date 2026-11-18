@@ -1,4 +1,4 @@
-const { validateCatalogId, validateListQuery, nullableText } = require("./catalog.validation");
+const { validateCatalogId, validateListQuery, nullableText, validText } = require("./catalog.validation");
 
 const mealTypes = new Set(["SINGLE", "COMBO_7_DAYS", "TOPPING"]);
 const goalTypes = new Set(["BULK", "CUT", "MAINTAIN"]);
@@ -18,7 +18,7 @@ const mealSorts = {
 function validateMealListQuery(query, manage = false) {
     const { data, errors } = validateListQuery(query, mealSorts, manage);
     if (query.category_id !== undefined) {
-        const categoryId = typeof query.category_id === "string" ? validateId(query.category_id) : null;
+        const categoryId = validateId(query.category_id);
         if (categoryId === null) errors.push("category_id must be a positive integer");
         else data.category_id = categoryId;
     }
@@ -68,8 +68,7 @@ const writableFields = [
 ];
 
 function validateId(value) {
-    const id = Number(value);
-    return Number.isSafeInteger(id) && id > 0 ? id : validateCatalogId(value);
+    return typeof value === "string" ? validateCatalogId(value) : null;
 }
 
 function validateMealPayload(payload, { partial = false } = {}) {
@@ -97,39 +96,29 @@ function validateMealPayload(payload, { partial = false } = {}) {
         }
     }
 
-    if (!partial || payload.price !== undefined) {
-        numericFields.forEach((field) => {
-            if (payload[field] === undefined && partial) {
-                return;
-            }
+    for (const field of numericFields) {
+        const raw = payload[field];
+        if (partial && raw === undefined) continue;
 
-            const value = Number(payload[field]);
-            if (!Number.isFinite(value) || value < 0) {
-                errors.push(`${field} must be a non-negative number`);
-            } else {
-                data[field] = value;
-            }
-        });
-    } else {
-        numericFields.slice(1).forEach((field) => {
-            if (payload[field] === undefined) {
-                return;
-            }
-
-            const value = Number(payload[field]);
-            if (!Number.isFinite(value) || value < 0) {
-                errors.push(`${field} must be a non-negative number`);
-            } else {
-                data[field] = value;
-            }
-        });
+        const value = typeof raw === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw) ? Number(raw) : raw;
+        const max = field === "price" ? 9999999999.99 : 999999.99;
+        const negativeUnderflow = Object.is(value, -0) && typeof raw === "string" && /[1-9]/.test(raw);
+        // A decimal string just over the limit can round down to the limit as a Number.
+        const roundedToMax = value === max && typeof raw === "string" && /\.99\d*[1-9]\d*$/.test(raw);
+        if (!Number.isFinite(value) || value < 0 || negativeUnderflow) {
+            errors.push(`${field} must be a non-negative number`);
+        } else if (value > max || roundedToMax) {
+            errors.push(`${field} must be at most ${max}`);
+        } else {
+            data[field] = value;
+        }
     }
 
     if (payload.category_id !== undefined) {
         if (payload.category_id === null) {
             data.category_id = null;
         } else {
-            const categoryId = validateId(payload.category_id);
+            const categoryId = validateCatalogId(payload.category_id);
             if (categoryId === null) {
                 errors.push("category_id must be a positive integer or null");
             } else {
@@ -156,9 +145,8 @@ function validateMealPayload(payload, { partial = false } = {}) {
     }
 
     ["description", "image_url"].forEach((field) => {
-        if (payload[field] !== undefined && payload[field] !== null &&
-            typeof payload[field] !== "string") {
-            errors.push(`${field} must be a string or null`);
+        if (payload[field] !== undefined && payload[field] !== null && !validText(payload[field])) {
+            errors.push(`${field} must be a string without NUL characters or null`);
         }
     });
 

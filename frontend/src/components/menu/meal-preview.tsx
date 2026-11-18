@@ -39,7 +39,10 @@ export function MealPreview({ meal }: { meal: Meal }) {
     label,
     original: formatMeasure(meal[key], unit),
     customized: formatMeasure(
-      chosen.reduce((total, option) => total + option[`${key}_adjustment`], meal[key]),
+      Math.max(
+        0,
+        chosen.reduce((total, option) => total + option[`${key}_adjustment`], meal[key]),
+      ),
       unit,
     ),
   }));

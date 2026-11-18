@@ -1,9 +1,9 @@
 function validationError(res, errors) {
-    return res.status(400).json({ success: false, message: "Validation failed", errors });
+    return res.status(400).json({ success: false, code: "VALIDATION_ERROR", message: "Validation failed", errors });
 }
 
 function notFound(res, resource) {
-    return res.status(404).json({ success: false, message: `${resource} not found` });
+    return res.status(404).json({ success: false, code: "NOT_FOUND", message: `${resource} not found` });
 }
 
 function conflict(res, code, message, details) {

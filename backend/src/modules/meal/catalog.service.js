@@ -1,5 +1,30 @@
 const pool = require("../../config/database");
 
+const vietnameseAccents = {
+    a: "àáảãạăằắẳẵặâầấẩẫậ",
+    e: "èéẻẽẹêềếểễệ",
+    i: "ìíỉĩị",
+    o: "òóỏõọôồốổỗộơờớởỡợ",
+    u: "ùúủũụưừứửữự",
+    y: "ỳýỷỹỵ",
+    d: "đ"
+};
+const accented = Object.values(vietnameseAccents).join("");
+const plain = Object.entries(vietnameseAccents).map(([letter, variants]) => letter.repeat(variants.length)).join("");
+
+function catalogSearchPattern(search) {
+    const folded = search.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d");
+    return `%${(folded || search).replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function addCatalogSearch(search, conditions, values) {
+    if (!search) return;
+    const parameter = values.push(catalogSearchPattern(search));
+    const matches = column =>
+        `translate(lower(normalize(${column})), '${accented}', '${plain}') ILIKE $${parameter} ESCAPE E'\\\\'`;
+    conditions.push(`(${matches("name")} OR ${matches("description")})`);
+}
+
 async function listPage({ table, columns, conditions, values, order, page, page_size }) {
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const { rows } = await pool.query(
@@ -20,4 +45,4 @@ async function listPage({ table, columns, conditions, values, order, page, page_
     };
 }
 
-module.exports = { listPage };
+module.exports = { addCatalogSearch, catalogSearchPattern, listPage };

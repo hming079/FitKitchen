@@ -1,7 +1,8 @@
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ImageOff } from "lucide-react";
 import { SectionError } from "@/components/admin/customer-ui";
+import { goalLabels } from "@/components/menu/meal-display";
+import { MenuMealImage } from "@/components/menu/meal-image";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -44,7 +45,6 @@ const typeLabels: Record<MealType, string> = {
   TOPPING: "Topping",
 };
 const typeChoices = mealTypes.map((value) => ({ value, label: typeLabels[value] }));
-const goalLabels: Record<GoalType, string> = { BULK: "Bulk", CUT: "Cut", MAINTAIN: "Maintain" };
 const goalChoices = goalTypes.map((value) => ({ value, label: goalLabels[value] }));
 const noCategory = { value: "none", label: "No category" };
 const allCategories = { value: "all", label: "All categories" };
@@ -57,29 +57,6 @@ const mealMeasures = [
 
 function categoryChoice(category: Category) {
   return { value: category.id, label: category.name };
-}
-
-function MealThumbnail({ url }: { url: string | null }) {
-  const [failed, setFailed] = useState(false);
-  let src: string | undefined;
-  if (url?.startsWith("/") && !/^[/][\\/]/.test(url)) src = url;
-  else if (url && /^https?:\/\//i.test(url)) src = url;
-  return (
-    <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground">
-      {src && !failed ? (
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-          className="size-full object-cover"
-        />
-      ) : (
-        <ImageOff size={16} aria-hidden />
-      )}
-    </span>
-  );
 }
 
 function MealEditor({
@@ -315,7 +292,7 @@ export function MealCatalog() {
             <TableRow key={meal.id}>
               <TableCell className="min-w-48 max-w-64 font-medium">
                 <div className="flex items-center gap-3">
-                  <MealThumbnail key={meal.image_url} url={meal.image_url} />
+                  <MenuMealImage key={meal.image_url} url={meal.image_url} name="" lazy thumbnail />
                   <span className="min-w-0 [overflow-wrap:anywhere]">{meal.name}</span>
                 </div>
               </TableCell>

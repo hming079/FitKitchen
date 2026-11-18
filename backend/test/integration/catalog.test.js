@@ -118,7 +118,65 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.equal((await adminRequest("/meals/manage?available=true")).body.pagination.total, 5);
         const invalid = await request("/meals?min_calories=2&max_calories=1");
         assert.equal(invalid.status, 400);
-        assert.deepEqual(invalid.body, { success: false, message: "Validation failed", errors: ["min_calories must be less than or equal to max_calories"] });
+        assert.deepEqual(invalid.body, {
+            success: false, code: "VALIDATION_ERROR", message: "Validation failed",
+            errors: ["min_calories must be less than or equal to max_calories"]
+        });
+    });
+
+    await t.test("meal routes reject malformed identifiers and invalid amounts", async () => {
+        assert.equal((await request("/meals/0x1")).status, 400);
+        assert.equal((await request("/meals/0x1/customizations")).status, 400);
+        assert.equal((await request("/meals?category_id=1e0")).status, 400);
+        for (const [field, value] of [["calories", 10000000], ["price", null], ["category_id", "1.0"]]) {
+            for (const result of [
+                await adminRequest("/meals", "POST", { ...mealPayload, [field]: value }),
+                await adminRequest("/meals/1", "PATCH", { [field]: value })
+            ]) {
+                assert.equal(result.status, 400);
+                assert.equal(result.body.code, "VALIDATION_ERROR");
+                assert.match(result.body.errors[0], new RegExp(`^${field} `));
+            }
+        }
+    });
+
+    await t.test("meal writes reject NUL text and map database encoding failures to 400", async () => {
+        for (const [field, message] of [
+            ["description", "description must be a string without NUL characters or null"],
+            ["image_url", "image_url must be a string without NUL characters or null"],
+            ["name", "A text meal field contains invalid characters"]
+        ]) {
+            for (const result of [
+                await adminRequest("/meals", "POST", { ...mealPayload, [field]: "before\0after" }),
+                await adminRequest("/meals/1", "PATCH", { [field]: "before\0after" })
+            ]) {
+                assert.equal(result.status, 400);
+                assert.equal(result.body.code, "VALIDATION_ERROR");
+                assert.deepEqual(result.body.errors, [message]);
+            }
+        }
+    });
+
+    await t.test("meal and product search fold Vietnamese text and match literal wildcard characters", async () => {
+        const search = (route, term) => request(`${route}?search=${encodeURIComponent(term)}`);
+        for (const term of ["uc ga", "UC GA", "ức gà"]) {
+            const result = await search("/meals", term);
+            assert.equal(result.status, 200);
+            assert.ok(result.body.data.some(meal => meal.name === "Ức gà nướng măng tây"));
+        }
+        const product = await search("/products", "bot dam");
+        assert.equal(product.status, 200);
+        assert.deepEqual(product.body.data.map(row => row.name), ["Whey Protein vị vani"]);
+        const created = await adminRequest("/products", "POST", {
+            name: "Đậu".normalize("NFD"), description: "100%_\\", price: 10
+        });
+        assert.equal(created.status, 201);
+        const { id } = created.body.data;
+        assert.ok(ids(await search("/products", "dau")).includes(id));
+        for (const term of ["%", "_", "\\"]) {
+            assert.deepEqual(ids(await search("/meals", term)), []);
+            assert.deepEqual(ids(await search("/products", term)), [id]);
+        }
     });
 
     await t.test("meal goal and allergen fields can be cleared and invalid goals return HTTP 400", async () => {
@@ -179,7 +237,9 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.equal(rename.status, 409);
         assert.equal(rename.body.code, "CATEGORY_NAME_TAKEN");
         assert.deepEqual(await adminRequest(route, "DELETE"), { status: 200, body: { success: true, data: { id } } });
-        assert.equal((await request(route)).status, 404);
+        assert.deepEqual(await request(route), {
+            status: 404, body: { success: false, code: "NOT_FOUND", message: "Category not found" }
+        });
         assert.equal((await adminRequest(route, "DELETE")).status, 404);
 
         const used = await adminRequest("/meal-categories", "POST", { name: "Catalog inactive meal category" });
@@ -192,9 +252,22 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.equal(blocked.status, 409);
         assert.equal(blocked.body.code, "CATEGORY_IN_USE");
         assert.equal(blocked.body.meal_count, 1);
+        assert.equal(blocked.body.total_meal_count, 1);
         assert.equal((await request(`/meals/${meal.body.data.id}`)).body.data.category_id, used.body.data.id);
         const list = await request("/meal-categories");
-        assert.equal(list.body.data.find(row => row.id === used.body.data.id).meal_count, 0);
+        assert.deepEqual(list.body.data.find(row => row.id === used.body.data.id), {
+            ...used.body.data, meal_count: 0, total_meal_count: 1
+        });
+    });
+
+    await t.test("paused meals hide customization options from public requests only", async () => {
+        const paused = await adminRequest("/meals", "POST", { ...mealPayload, is_available: false });
+        assert.equal(paused.status, 201);
+        const path = `/meals/${paused.body.data.id}/customizations`;
+        const option = await adminRequest(path, "POST", { name: "Visible only to management" });
+        assert.equal(option.status, 201);
+        assert.deepEqual(await request(path), { status: 200, body: { success: true, data: [] } });
+        assert.deepEqual(ids(await adminRequest(`${path}/manage`)), [option.body.data.id]);
     });
 
     await t.test("customizations are scoped to the parent and soft-deleted even when in a cart", async () => {
@@ -261,6 +334,7 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         assert.deepEqual(ids(await request("/products?category=catalog")), []);
         assert.deepEqual(ids(await request("/products?search=GINGER&category=Catalog")), [id]);
         assert.deepEqual(ids(await request("/products?category=Catalog&in_stock=true")), []);
+        assert.deepEqual(ids(await request("/products?category=Catalog&in_stock=false")), [id]);
 
         const patched = await adminRequest(route, "PATCH", { name: "Catalog Drink Updated", unit: null });
         assert.equal(patched.status, 200);
@@ -270,6 +344,7 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
         const stocked = await adminRequest(`${route}/stock`, "PATCH", { adjustment: 5 });
         assert.equal(stocked.status, 200);
         assert.equal(stocked.body.data.stock_quantity, 5);
+        assert.deepEqual(ids(await request("/products?category=Catalog&in_stock=false")), []);
         const list = await request("/products?in_stock=true&sort=price_asc&page_size=1");
         assert.deepEqual(ids(list), [id]);
         assert.deepEqual(list.body.pagination, { page: 1, page_size: 1, total: 4, total_pages: 4 });
@@ -305,6 +380,7 @@ test("Catalog against real HTTP, signed JWTs and PostgreSQL", async t => {
             assert.equal(result.status, 400);
             assert.deepEqual(result.body, {
                 success: false,
+                code: "VALIDATION_ERROR",
                 message: "Validation failed",
                 errors: ["category_id does not reference an existing category"]
             });

@@ -4,6 +4,13 @@ const { validateCatalogId } = require("./catalog.validation");
 const { validateOptionPayload } = require("./option.validation");
 const { validationError, notFound, conflict } = require("./catalog.responses");
 
+const mealWriteErrors = new Map([
+    ["23503", "category_id does not reference an existing category"],
+    ["22003", "A numeric meal field exceeds its allowed range"],
+    ["22001", "A text meal field exceeds its allowed length"],
+    ["22021", "A text meal field contains invalid characters"]
+]);
+
 class MealController {
     async list(req, res, manage = false) {
         const { data, errors } = validateMealListQuery(req.query, manage);
@@ -19,12 +26,10 @@ class MealController {
 
         try {
             const meal = await mealService.findById(id);
-            if (!meal) {
-                return res.status(404).json({ success: false, message: "Meal not found" });
-            }
+            if (!meal) return notFound(res, "Meal");
             return res.json({ success: true, data: meal });
         } catch (error) {
-            console.error(`Error getting meal ${id}:`, error.code || error.name);
+            console.error(`Error getting meal ${id}:`, error.code || error.name, error.message);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
@@ -83,8 +88,9 @@ class MealController {
             const meal = await mealService.create(data);
             return res.status(201).json({ success: true, data: meal });
         } catch (error) {
-            if (error.code === "23503") return validationError(res, ["category_id does not reference an existing category"]);
-            console.error("Error creating meal:", error.code || error.name);
+            const message = mealWriteErrors.get(error.code);
+            if (message) return validationError(res, [message]);
+            console.error("Error creating meal:", error.code || error.name, error.message);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
@@ -102,13 +108,12 @@ class MealController {
 
         try {
             const meal = await mealService.update(id, data);
-            if (!meal) {
-                return res.status(404).json({ success: false, message: "Meal not found" });
-            }
+            if (!meal) return notFound(res, "Meal");
             return res.json({ success: true, data: meal });
         } catch (error) {
-            if (error.code === "23503") return validationError(res, ["category_id does not reference an existing category"]);
-            console.error(`Error updating meal ${id}:`, error.code || error.name);
+            const message = mealWriteErrors.get(error.code);
+            if (message) return validationError(res, [message]);
+            console.error(`Error updating meal ${id}:`, error.code || error.name, error.message);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }
@@ -121,12 +126,10 @@ class MealController {
 
         try {
             const meal = await mealService.archive(id);
-            if (!meal) {
-                return res.status(404).json({ success: false, message: "Meal not found" });
-            }
+            if (!meal) return notFound(res, "Meal");
             return res.json({ success: true, data: meal });
         } catch (error) {
-            console.error(`Error archiving meal ${id}:`, error.code || error.name);
+            console.error(`Error archiving meal ${id}:`, error.code || error.name, error.message);
             return res.status(500).json({ success: false, message: "Internal server error" });
         }
     }

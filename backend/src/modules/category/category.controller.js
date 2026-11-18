@@ -47,8 +47,11 @@ async function remove(req, res) {
     if (id === null) return validationError(res, ["id must be a positive integer"]);
     const result = await service.remove(id);
     if (!result) return notFound(res, "Category");
-    if (result.meal_count) {
-        return conflict(res, "CATEGORY_IN_USE", "Category is still referenced by meals", { meal_count: result.meal_count });
+    if (result.total_meal_count) {
+        return conflict(res, "CATEGORY_IN_USE", "Category is still referenced by meals", {
+            meal_count: result.total_meal_count,
+            total_meal_count: result.total_meal_count
+        });
     }
     return res.json({ success: true, data: result });
 }

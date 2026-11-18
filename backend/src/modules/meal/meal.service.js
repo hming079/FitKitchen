@@ -1,5 +1,5 @@
 const pool = require("../../config/database");
-const { listPage } = require("./catalog.service");
+const { addCatalogSearch, listPage } = require("./catalog.service");
 const { mealSorts, writableFields } = require("./meal.validation");
 const { optionFields } = require("./option.validation");
 
@@ -27,10 +27,7 @@ class MealService {
         const values = [];
         const conditions = [];
 
-        if (filters.search) {
-            values.push(`%${filters.search}%`);
-            conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
-        }
+        addCatalogSearch(filters.search, conditions, values);
         for (const [field, expression] of Object.entries(mealFilters)) {
             if (filters[field] === undefined) continue;
             values.push(filters[field]);
@@ -56,7 +53,7 @@ class MealService {
             `SELECT ${qualifiedOptionColumns}
              FROM meals
              LEFT JOIN meal_customization_options AS options
-                 ON options.meal_id = meals.id AND ($2 OR options.is_available = TRUE)
+                 ON options.meal_id = meals.id AND ($2 OR (meals.is_available = TRUE AND options.is_available = TRUE))
              WHERE meals.id = $1
              ORDER BY options.id`,
             [id, manage]

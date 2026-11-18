@@ -1,5 +1,5 @@
 const pool = require("../../config/database");
-const { listPage } = require("../meal/catalog.service");
+const { addCatalogSearch, listPage } = require("../meal/catalog.service");
 const { productFields, productSorts, maxStock } = require("./product.validation");
 
 const columns = "id, name, description, category, image_url, price, stock_quantity, unit, is_available, created_at, updated_at";
@@ -7,10 +7,7 @@ const columns = "id, name, description, category, image_url, price, stock_quanti
 function list(filters) {
     const values = [];
     const conditions = [];
-    if (filters.search) {
-        values.push(`%${filters.search}%`);
-        conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
-    }
+    addCatalogSearch(filters.search, conditions, values);
     if (filters.category !== undefined) {
         values.push(filters.category);
         conditions.push(`category = $${values.length}`);
@@ -20,6 +17,7 @@ function list(filters) {
         conditions.push(`is_available = $${values.length}`);
     }
     if (filters.in_stock) conditions.push("stock_quantity > 0");
+    if (filters.in_stock === false) conditions.push("stock_quantity = 0");
 
     return listPage({
         table: "products", columns, conditions, values,
