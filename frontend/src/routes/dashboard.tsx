@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, CalendarDays, Check, CircleHelp, Droplets, Flame, LockKeyhole, Sparkles, Target, UtensilsCrossed } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { StoreHeader } from "@/components/store-header";
+import { CustomerAccess } from "@/components/customer-access";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -52,6 +53,10 @@ const chartMacros: Array<{ id: AnalyticsMacro; label: string; unit: string; targ
 ];
 
 function DashboardPage() {
+  return <CustomerAccess><DashboardContent /></CustomerAccess>;
+}
+
+function DashboardContent() {
   const [analyticsUnlocked, setAnalyticsUnlocked] = useState(false);
   const [activeMacro, setActiveMacro] = useState<AnalyticsMacro>("calories");
   const [period, setPeriod] = useState<AnalyticsPeriod>("week");

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,11 +7,12 @@ import {
   Leaf,
   LockKeyhole,
   Mail,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { ApiError, setAccessToken } from "@/lib/admin-api";
+import { login } from "@/lib/auth-api";
 import heroImage from "@/assets/fitfuel-meal-hero.jpg";
 
 export const Route = createFileRoute("/login")({
@@ -25,14 +26,28 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const [admin, setAdmin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [pending, setPending] = useState(false);
+  const navigate = useNavigate();
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    setMessage("Sign in is a visual preview. Account authentication is not connected yet.");
+    setMessage("");
+    setPending(true);
+    try {
+      const response = await login(email, password);
+      setAccessToken(response.data.token);
+      await navigate({ to: response.data.user.role === "ADMIN" ? "/admin" : "/dashboard" });
+    } catch (error) {
+      setMessage(
+        error instanceof ApiError ? error.message : "Could not sign in. Please try again.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -93,13 +108,9 @@ function LoginPage() {
               <p className="mb-2 text-[14px] font-bold uppercase tracking-[.16em] text-coral">
                 Welcome to FitFuel
               </p>
-              <h2 className="font-display text-3xl font-bold tracking-[-.04em]">
-                {admin ? "Admin sign in" : "Welcome back."}
-              </h2>
+              <h2 className="font-display text-3xl font-bold tracking-[-.04em]">Welcome back.</h2>
               <p className="mt-2 text-xs text-muted-foreground">
-                {admin
-                  ? "Administrator access requires a verified account session."
-                  : "Sign in to keep your good-food routine going."}
+                Sign in to continue. Your account role determines which workspace opens.
               </p>
             </div>
             <form onSubmit={submit} className="space-y-4">
@@ -114,7 +125,9 @@ function LoginPage() {
                     type="email"
                     autoComplete="email"
                     placeholder="you@example.com"
-                    className="h-full min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/75"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-full min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/75"
                   />
                 </span>
               </label>
@@ -126,11 +139,13 @@ function LoginPage() {
                   <LockKeyhole size={15} className="shrink-0 text-muted-foreground" />
                   <input
                     required
-                    minLength={6}
+                    minLength={8}
                     type={showPassword ? "text" : "password"}
-                    autoComplete={admin ? "current-password" : "current-password"}
+                    autoComplete="current-password"
                     placeholder="Enter your password"
-                    className="h-full min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/75"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-full min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/75"
                   />
                   <button
                     type="button"
@@ -142,24 +157,22 @@ function LoginPage() {
                   </button>
                 </span>
               </label>
-              {!admin && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMessage(
-                        "Password reset will be available when account sign-in is connected.",
-                      )
-                    }
-                    className="text-[14px] font-semibold text-muted-foreground hover:text-foreground"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMessage(
+                      "Password reset is not available yet. Contact support if you need help accessing your account.",
+                    )
+                  }
+                  className="text-[14px] font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Forgot password?
+                </button>
+              </div>
               {message && (
                 <p
-                  role="status"
+                  role="alert"
                   className="border-l-2 border-coral bg-secondary/50 px-3 py-2 text-[14px] leading-relaxed text-muted-foreground"
                 >
                   {message}
@@ -167,38 +180,13 @@ function LoginPage() {
               )}
               <Button
                 type="submit"
+                disabled={pending}
                 className="h-11 w-full justify-center gap-2 rounded-sm bg-lime text-sm font-bold text-foreground hover:bg-lime/90"
               >
-                {admin ? "Sign in" : "Sign in"}
+                {pending ? "Signing in…" : "Sign in"}
                 <ArrowRight size={15} />
               </Button>
             </form>
-            <div className="my-6 flex items-center gap-3 text-[13px] uppercase tracking-[.12em] text-muted-foreground/75">
-              <span className="h-px flex-1 bg-border" />
-              or
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <button
-              type="button"
-              aria-pressed={admin}
-              onClick={() => {
-                setAdmin((v) => !v);
-                setMessage("");
-              }}
-              className={`flex min-h-11 items-center justify-between border px-3.5 py-2.5 text-left transition-colors ${admin ? "border-foreground bg-foreground text-primary-foreground" : "border-border bg-card text-foreground hover:bg-secondary/40"}`}
-            >
-              <span className="flex items-center gap-2.5">
-                <ShieldCheck size={15} />
-                <span className="text-[14px] font-semibold">Login as Admin</span>
-              </span>
-              <span
-                className={`relative h-[17px] w-[30px] rounded-full p-[2px] transition-colors ${admin ? "bg-lime" : "bg-border"}`}
-              >
-                <span
-                  className={`block size-[13px] rounded-full transition-transform ${admin ? "translate-x-[13px] bg-foreground" : "translate-x-0 bg-white"}`}
-                />
-              </span>
-            </button>
             <p className="mt-5 text-center text-[14px] text-muted-foreground">
               Don’t have an account?{" "}
               <Link

@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CatalogManager } from "@/components/admin/catalog/catalog-manager";
 import { CustomerDirectory } from "@/components/admin/customer-directory";
 import { AdminAccess } from "@/components/admin/admin-access";
 import { AdminMobileNavigation } from "@/components/admin/admin-mobile-navigation";
-import { setAccessToken, type Session } from "@/lib/admin-api";
+import { type Session } from "@/lib/admin-api";
+import { logout } from "@/lib/auth-api";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -20,11 +21,11 @@ import {
   Clock3,
   Command,
   Download,
-  Ellipsis,
   Eye,
   Flame,
   LayoutDashboard,
   Leaf,
+  LogOut,
   Search,
   Settings2,
   ShoppingBag,
@@ -125,6 +126,11 @@ function AdminRoute() {
 }
 
 function AdminPage({ user }: { user: Session }) {
+  const navigate = useNavigate();
+  const signOut = () => {
+    void logout();
+    void navigate({ to: "/login" });
+  };
   const [view, setView] = useState<View>("Customers");
   const showDemoControls = view !== "Customers" && view !== "Meals";
   const [orders, setOrders] = useState<(Omit<DemoOrder, "status"> & { status: Status })[]>(
@@ -220,7 +226,15 @@ function AdminPage({ user }: { user: Session }) {
             <div className="truncate text-xs font-semibold">{user.full_name}</div>
             <div className="text-[14px] text-muted-foreground">Kitchen admin</div>
           </div>
-          <Ellipsis size={17} className="text-muted-foreground" />
+          <button
+            type="button"
+            aria-label="Sign out"
+            title="Sign out"
+            onClick={signOut}
+            className="rounded-sm p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LogOut size={17} />
+          </button>
         </div>
       </div>
     </>
@@ -332,7 +346,7 @@ function AdminPage({ user }: { user: Session }) {
           {view === "Subscriptions" && <Subscriptions />}
           <div className="mt-6 flex items-center justify-between text-[14px] text-muted-foreground">
             <span>© 2026 FitKitchen{view !== "Meals" && " · Other tabs use demo data"}</span>
-            <Button variant="ghost" onClick={() => setAccessToken(null)}>
+            <Button variant="ghost" onClick={signOut}>
               Sign out
             </Button>
           </div>
