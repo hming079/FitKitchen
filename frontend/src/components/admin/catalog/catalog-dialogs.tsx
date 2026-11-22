@@ -51,13 +51,14 @@ function useCatalogWrite<T>(
   success: string,
   onClose: () => void,
   onSuccess = onClose,
+  queryKey: readonly unknown[] = catalogKey,
 ) {
   const client = useQueryClient();
   const busy = useRef(false);
   const mutation = useMutation({
     mutationFn: save,
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: catalogKey });
+      await client.invalidateQueries({ queryKey });
       toast.success(success);
       onSuccess();
     },
@@ -90,13 +91,16 @@ export function CatalogConfirm({
   action,
   onClose,
   onSuccess = onClose,
+  queryKey = catalogKey,
 }: {
   action: CatalogAction;
   onClose: () => void;
   onSuccess?: () => void;
+  /** Query prefix to refresh after success; defaults to the catalog. */
+  queryKey?: readonly unknown[];
 }) {
   const restoreFocus = useReturnFocus();
-  const mutation = useCatalogWrite(action.run, action.success, onClose, onSuccess);
+  const mutation = useCatalogWrite(action.run, action.success, onClose, onSuccess, queryKey);
   return (
     <AlertDialog
       open
@@ -177,6 +181,7 @@ export function CatalogForm({
   save,
   success,
   onClose,
+  queryKey = catalogKey,
   children,
 }: {
   title: string;
@@ -187,10 +192,12 @@ export function CatalogForm({
   save: (data: FormData) => Promise<unknown>;
   success: string;
   onClose: () => void;
+  /** Query prefix to refresh after success; defaults to the catalog. */
+  queryKey?: readonly unknown[];
   children: (nameError?: string, clearError?: () => void) => ReactNode;
 }) {
   const [pause, setPause] = useState<FormData | null>(null);
-  const mutation = useCatalogWrite(save, success, onClose);
+  const mutation = useCatalogWrite(save, success, onClose, onClose, queryKey);
   const message = mutation.error?.message;
   const duplicate = mutation.error instanceof ApiError && mutation.error.code === nameConflict;
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -229,6 +236,7 @@ export function CatalogForm({
           }}
           onClose={() => setPause(null)}
           onSuccess={onClose}
+          queryKey={queryKey}
         />
       )}
     </CatalogDialog>

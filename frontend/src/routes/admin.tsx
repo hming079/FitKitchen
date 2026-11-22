@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CatalogManager } from "@/components/admin/catalog/catalog-manager";
 import { CustomerDirectory } from "@/components/admin/customer-directory";
+import { SubscriptionManager } from "@/components/admin/subscription-manager";
 import { AdminAccess } from "@/components/admin/admin-access";
 import { AdminMobileNavigation } from "@/components/admin/admin-mobile-navigation";
 import { type Session } from "@/lib/admin-api";
@@ -12,13 +13,11 @@ import {
   BadgePercent,
   Bell,
   Boxes,
-  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
-  Clock3,
   Command,
   Download,
   Eye,
@@ -60,57 +59,6 @@ const nav: { name: View; icon: typeof LayoutDashboard; count?: string }[] = [
   { name: "Customers", icon: Users },
   { name: "Subscriptions", icon: Boxes },
 ];
-// Fixtures for the pre-existing delivery preview only. Customers uses the backend.
-const demoCustomers = [
-  {
-    name: "Linh Nguyen",
-    email: "linh.nguyen@email.com",
-    phone: "+84 912 345 678",
-    goal: "Cut",
-    initials: "LN",
-    color: "peach",
-  },
-  {
-    name: "Marcus Tran",
-    email: "marcus.tran@email.com",
-    phone: "+84 903 782 111",
-    goal: "Bulk",
-    initials: "MT",
-    color: "lavender",
-  },
-  {
-    name: "An Pham",
-    email: "an.pham@email.com",
-    phone: "+84 987 654 321",
-    goal: "Maintain",
-    initials: "AP",
-    color: "mint",
-  },
-  {
-    name: "Jade Le",
-    email: "jade.le@email.com",
-    phone: "+84 908 234 567",
-    goal: "Cut",
-    initials: "JL",
-    color: "blue",
-  },
-  {
-    name: "Minh Vo",
-    email: "minh.vo@email.com",
-    phone: "+84 916 222 354",
-    goal: "Bulk",
-    initials: "MV",
-    color: "yellow",
-  },
-  {
-    name: "Sarah Do",
-    email: "sarah.do@email.com",
-    phone: "+84 934 321 899",
-    goal: "Maintain",
-    initials: "SD",
-    color: "pink",
-  },
-];
 const weekly = [
   { day: "Mon", amount: 640 },
   { day: "Tue", amount: 820 },
@@ -132,7 +80,7 @@ function AdminPage({ user }: { user: Session }) {
     void navigate({ to: "/login" });
   };
   const [view, setView] = useState<View>("Customers");
-  const showDemoControls = view !== "Customers" && view !== "Meals";
+  const showDemoControls = view !== "Customers" && view !== "Meals" && view !== "Subscriptions";
   const [orders, setOrders] = useState<(Omit<DemoOrder, "status"> & { status: Status })[]>(
     demoOrders.map((o) => ({ ...o, status: o.status as Status })),
   );
@@ -343,9 +291,12 @@ function AdminPage({ user }: { user: Session }) {
             </Panel>
           )}
           {view === "Customers" && <CustomerDirectory />}
-          {view === "Subscriptions" && <Subscriptions />}
+          {view === "Subscriptions" && <SubscriptionManager />}
           <div className="mt-6 flex items-center justify-between text-[14px] text-muted-foreground">
-            <span>© 2026 FitKitchen{view !== "Meals" && " · Other tabs use demo data"}</span>
+            <span>
+              © 2026 FitKitchen
+              {showDemoControls && " · Other tabs use demo data"}
+            </span>
             <Button variant="ghost" onClick={signOut}>
               Sign out
             </Button>
@@ -424,7 +375,7 @@ const descriptions: Record<View, string> = {
   Meals: "Manage meals, categories and product inventory.",
   Promotions: "Manage discounts and seasonal offers.",
   Customers: "Find customers, review their history and manage account access.",
-  Subscriptions: "Plan upcoming deliveries for your meal subscribers.",
+  Subscriptions: "Configure subscription plans and gifts, and manage active subscribers.",
 };
 
 function Overview({
@@ -870,118 +821,6 @@ function Promotions() {
         </tr>
       ))}
     </DataTable>
-  );
-}
-function Subscriptions() {
-  const subscriptions = [
-    {
-      customer: demoCustomers[0]!,
-      package: "Lean & Green · 5 days",
-      meals: ["Teriyaki chicken", "Salmon power bowl", "Turkey meatballs"],
-      date: "Nov 17, 2026",
-      time: "11:00 – 12:00",
-      status: "Preparing",
-    },
-    {
-      customer: demoCustomers[1]!,
-      package: "Muscle Builder · 7 days",
-      meals: ["Steak & sweet potato", "Chicken pesto pasta", "Beef bulgogi"],
-      date: "Nov 17, 2026",
-      time: "12:00 – 13:00",
-      status: "Preparing",
-    },
-    {
-      customer: demoCustomers[2]!,
-      package: "Balanced Week · 5 days",
-      meals: ["Miso salmon", "Citrus chicken bowl", "Tofu grain bowl"],
-      date: "Nov 18, 2026",
-      time: "11:00 – 12:00",
-      status: "Scheduled",
-    },
-    {
-      customer: demoCustomers[3]!,
-      package: "Lean & Green · 3 days",
-      meals: ["Lemon herb chicken", "Korean beef bowl", "Harvest tofu"],
-      date: "Nov 18, 2026",
-      time: "17:00 – 18:00",
-      status: "Scheduled",
-    },
-  ];
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MiniCard
-          icon={Boxes}
-          title="Active packages"
-          value="248 subscribers"
-          note="Across 4 meal plans"
-          color="green"
-        />
-        <MiniCard
-          icon={CalendarDays}
-          title="Next delivery"
-          value="Tomorrow · Nov 17"
-          note="18 combo packages"
-          color="blue"
-        />
-        <MiniCard
-          icon={UtensilsCrossed}
-          title="Meals to prepare"
-          value="126 meal portions"
-          note="Prep schedule is on track"
-          color="orange"
-        />
-      </div>
-      <Panel
-        title="Upcoming combo deliveries"
-        sub="Meal plans grouped by customer and expected delivery date."
-        right={
-          <button className="flex h-9 items-center gap-2 rounded-sm border border-[#e5eae3] px-3 text-[14px] font-medium text-[#647066]">
-            <CalendarDays size={14} /> Delivery calendar
-          </button>
-        }
-      >
-        <DataTable
-          headers={["Customer", "Package", "Included meals", "Expected delivery", "Status"]}
-          min="880px"
-        >
-          {subscriptions.map((s) => (
-            <tr key={s.customer.email} className="hover:bg-[#fbfcfa]">
-              <td className="px-4 py-3.5 sm:px-5">
-                <div className="text-[14px] font-semibold">{s.customer.name}</div>
-                <div className="mt-0.5 text-[13px] text-[#9ba49b]">{s.customer.goal} plan</div>
-              </td>
-              <td className="px-4 py-3.5 text-[14px] font-medium">{s.package}</td>
-              <td className="px-4 py-3.5">
-                <div className="flex max-w-[280px] flex-wrap gap-1">
-                  {s.meals.map((meal) => (
-                    <span
-                      key={meal}
-                      className="rounded-md bg-[#f4f6f2] px-1.5 py-1 text-[13px] text-[#6f7b70]"
-                    >
-                      {meal}
-                    </span>
-                  ))}
-                </div>
-              </td>
-              <td className="px-4 py-3.5">
-                <div className="flex items-center gap-1.5 text-[14px] font-medium">
-                  <CalendarDays size={12} className="text-[#8ca37c]" />
-                  {s.date}
-                </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[#9ba49b]">
-                  <Clock3 size={11} />
-                  {s.time}
-                </div>
-              </td>
-              <td className="px-4 py-3.5">
-                <StatusBadge status={s.status === "Scheduled" ? "Pending" : s.status} />
-              </td>
-            </tr>
-          ))}
-        </DataTable>
-      </Panel>
-    </div>
   );
 }
 function Modal({

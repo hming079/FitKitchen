@@ -2,8 +2,10 @@ const router = require('express').Router();
 const { authenticate, requireRole } = require('../../middleware/auth');
 const { customerId, parseListQuery, validateStatus } = require('./customer.validation');
 const service = require('./customer.service');
+const { adminRouter: subscriptionAdminRouter } = require('../subscription');
 
 router.use(authenticate, requireRole('ADMIN'));
+router.use(subscriptionAdminRouter);
 router.get('/customers', async (req, res) => {
     res.json({ success: true, ...await service.list(parseListQuery(req.query)) });
 });
