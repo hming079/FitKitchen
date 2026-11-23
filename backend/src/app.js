@@ -7,6 +7,7 @@ const productModule = require("./modules/product");
 const userModule = require("./modules/user");
 const authModule = require("./modules/auth");
 const adminModule = require("./modules/admin");
+const subscriptionModule = require("./modules/subscription");
 const { authenticate } = require("./middleware/auth");
 const { securityHeaders, createRateLimiter } = require("./middleware/security");
 
@@ -32,6 +33,7 @@ app.use(userModule.basePath, userModule.router);
 app.post("/api/auth/login", createRateLimiter());
 app.use(authModule.basePath, authModule.router);
 app.use(adminModule.basePath, adminModule.router);
+app.use(subscriptionModule.basePath, subscriptionModule.router);
 app.get('/api/session', authenticate, (req, res) => res.json({ success: true, data: req.user }));
 
 app.use((error, req, res, next) => {
