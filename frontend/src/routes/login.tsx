@@ -20,6 +20,7 @@ export const Route = createFileRoute("/login")({
     meta: [
       { title: "Sign in | FitFuel Kitchen" },
       { name: "description", content: "Sign in to your FitFuel Kitchen account." },
+      { name: "robots", content: "noindex, nofollow, noarchive" },
     ],
   }),
   component: LoginPage,

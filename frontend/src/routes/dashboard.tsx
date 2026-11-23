@@ -24,10 +24,8 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Your Fuel Tracker | FitFuel Kitchen" },
-      {
-        name: "description",
-        content: "See your daily calories, protein, carbs, and fat alongside your goal targets.",
-      },
+      { name: "description", content: "See your daily calories, protein, carbs, and fat alongside your goal targets." },
+      { name: "robots", content: "noindex, nofollow, noarchive" },
       { property: "og:title", content: "Your Fuel Tracker | FitFuel Kitchen" },
       {
         property: "og:description",

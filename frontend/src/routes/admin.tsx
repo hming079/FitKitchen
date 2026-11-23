@@ -43,6 +43,7 @@ export const Route = createFileRoute("/admin")({
     meta: [
       { title: "Operations | FitFuel Kitchen" },
       { name: "description", content: "FitFuel Kitchen operations dashboard demo." },
+      { name: "robots", content: "noindex, nofollow, noarchive" },
     ],
   }),
   component: AdminRoute,
