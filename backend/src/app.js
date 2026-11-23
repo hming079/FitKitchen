@@ -8,11 +8,14 @@ const userModule = require("./modules/user");
 const authModule = require("./modules/auth");
 const adminModule = require("./modules/admin");
 const { authenticate } = require("./middleware/auth");
+const { securityHeaders, createRateLimiter } = require("./middleware/security");
 
 const app = express();
 
+app.disable("x-powered-by");
+app.use(securityHeaders);
 app.use(cors({ origin: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(origin => origin.trim()) }));
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -26,6 +29,7 @@ app.use(mealModule.basePath, mealModule.router);
 app.use(categoryModule.basePath, categoryModule.router);
 app.use(productModule.basePath, productModule.router);
 app.use(userModule.basePath, userModule.router);
+app.post("/api/auth/login", createRateLimiter());
 app.use(authModule.basePath, authModule.router);
 app.use(adminModule.basePath, adminModule.router);
 app.get('/api/session', authenticate, (req, res) => res.json({ success: true, data: req.user }));
