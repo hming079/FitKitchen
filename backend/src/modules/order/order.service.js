@@ -396,13 +396,17 @@ async function getOrder(userId, id) {
     [userId, id],
   );
   if (!order.rowCount) return null;
+  return { ...order.rows[0], items: await getOrderItems(id) };
+}
+
+async function getOrderItems(id) {
   const items = await pool.query(
     `SELECT oi.id, oi.meal_id, COALESCE(m.name, 'Meal no longer available') AS name, oi.quantity, oi.unit_price,
                 oi.calories_snapshot, oi.protein_snapshot, oi.carbs_snapshot, oi.fat_snapshot, oi.options
          FROM order_items oi LEFT JOIN meals m ON m.id = oi.meal_id WHERE oi.order_id = $1 ORDER BY oi.id`,
     [id],
   );
-  return { ...order.rows[0], items: items.rows };
+  return items.rows;
 }
 
 module.exports = {
@@ -414,4 +418,5 @@ module.exports = {
   checkout,
   listOrders,
   getOrder,
+  getOrderItems,
 };
