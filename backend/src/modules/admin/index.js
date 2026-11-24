@@ -2,24 +2,10 @@ const router = require('express').Router();
 const { authenticate, requireRole } = require('../../middleware/auth');
 const { customerId, parseListQuery, validateStatus } = require('./customer.validation');
 const service = require('./customer.service');
-const operations = require('./operations.service');
-const { positiveId, validatePage } = require('../order/order.validation');
 const { adminRouter: subscriptionAdminRouter } = require('../subscription');
 
 router.use(authenticate, requireRole('ADMIN'));
 router.use(subscriptionAdminRouter);
-router.get('/overview', async (req, res) => {
-    res.json({ success: true, data: await operations.overview(req.query.range ?? 'this_week') });
-});
-router.get('/orders', async (req, res) => {
-    res.json({ success: true, ...await operations.listOrders(req.query.search ?? '', validatePage(req.query)) });
-});
-router.get('/orders/:id', async (req, res) => {
-    res.json({ success: true, data: await operations.orderDetails(positiveId(req.params.id, 'id')) });
-});
-router.patch('/orders/:id/status', async (req, res) => {
-    res.json({ success: true, data: await operations.updateStatus(positiveId(req.params.id, 'id'), req.body) });
-});
 router.get('/customers', async (req, res) => {
     res.json({ success: true, ...await service.list(parseListQuery(req.query)) });
 });

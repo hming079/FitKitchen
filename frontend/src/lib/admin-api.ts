@@ -129,51 +129,6 @@ export const ordersSchema = z.object({
   ),
   pagination: paginationSchema,
 });
-const orderStatusSchema = z.enum(["PENDING", "PREPARING", "DELIVERING", "COMPLETED", "CANCELLED"]);
-const adminOrderSchema = ordersSchema.shape.data.element.extend({
-  customer_name: nullableText,
-  delivery_time_slot: nullableText,
-  next_statuses: z.array(orderStatusSchema),
-});
-export const adminOrdersSchema = ordersSchema.extend({ data: z.array(adminOrderSchema) });
-export const adminOrderDetailsSchema = z.object({
-  success: z.literal(true),
-  data: adminOrderSchema.extend({
-    shipping_fee: nullableText,
-    recipient_name: nullableText,
-    address_detail: nullableText,
-    items: z.array(
-      z.object({
-        id,
-        name: z.string(),
-        quantity: z.number(),
-        unit_price: z.string(),
-        options: z.unknown(),
-      }),
-    ),
-  }),
-});
-export const adminOrderStatusSchema = z.object({
-  success: z.literal(true),
-  data: z.object({ id, status: orderStatusSchema }),
-});
-export const adminOverviewSchema = z.object({
-  success: z.literal(true),
-  data: z.object({
-    daily_revenue: z.string(),
-    previous_daily_revenue: z.string(),
-    period_revenue: z.string(),
-    average_order_value: nullableText,
-    pending_orders: z.number(),
-    deliveries_today: z.number(),
-    active_subscriptions: z.number(),
-    top_meal: z
-      .object({ name: z.string(), quantity: z.number(), order_count: z.number() })
-      .nullable(),
-    revenue_series: z.array(z.object({ date: calendarDate, revenue: z.string() })),
-    recent_orders: z.array(adminOrderSchema),
-  }),
-});
 export const subscriptionsSchema = z.object({
   success: z.literal(true),
   data: z.array(
