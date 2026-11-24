@@ -51,6 +51,12 @@ export function StoreHeader() {
             <span className="sm:hidden">Macros</span>
             <ArrowUpRight className="hidden size-3.5 sm:block" />
           </Link>
+          <Link
+            to="/nutrition"
+            className={`hidden text-sm font-semibold transition-colors hover:text-coral sm:inline ${pathname === "/nutrition" ? "text-foreground" : "text-muted-foreground"}`}
+          >
+            Nutrition
+          </Link>
           {signedIn ? (
             <Button variant="ghost" size="sm" onClick={signOut} className="px-2 sm:px-3">
               <LogOut className="size-4 sm:hidden" />
