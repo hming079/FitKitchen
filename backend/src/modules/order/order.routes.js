@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { authenticate, requireRole } = require("../../middleware/auth");
 const controller = require("./order.controller");
 
-router.use(authenticate, requireRole("CUSTOMER"));
+router.use(["/cart", "/orders"], authenticate, requireRole("CUSTOMER"));
 router.get("/cart", controller.getCart);
 router.post("/cart/items", controller.addCartItem);
 router.patch("/cart/items/:itemId", controller.updateCartItem);
