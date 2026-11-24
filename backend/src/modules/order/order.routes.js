@@ -11,6 +11,7 @@ router.delete("/cart/items/:itemId", ...customer, controller.removeCartItem);
 router.delete("/cart", ...customer, controller.clearCart);
 router.post("/orders/checkout", ...customer, controller.checkout);
 router.get("/orders", ...customer, controller.listOrders);
+router.patch("/orders/:id/cancel", ...customer, controller.cancelOrder);
 router.get("/orders/:id", ...customer, controller.getOrder);
 
 module.exports = router;

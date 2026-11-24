@@ -72,6 +72,11 @@ function createOrderController() {
           });
       return res.json({ success: true, data: order });
     },
+    async cancelOrder(req, res) {
+      const id = positiveId(req.params.id, "id");
+      const order = await service.cancelOrder(req.user.id, id);
+      return res.json({ success: true, data: order });
+    },
   };
 }
 

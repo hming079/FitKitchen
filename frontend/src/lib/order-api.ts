@@ -78,6 +78,7 @@ export const orderSchema = z.object({
   payment_method: z.string(),
   payment_status: z.string().nullable(),
   delivery_time_slot: z.string().nullable(),
+  items_summary: z.string().optional(),
   items: z.array(orderItemSchema).optional(),
 });
 export type Order = z.infer<typeof orderSchema>;
@@ -132,4 +133,8 @@ export const orderApi = {
     requestApi("/orders?page=1&page_size=20", ordersSchema, signal ? { signal } : {}),
   order: (id: string, signal?: AbortSignal) =>
     requestApi(`/orders/${encodeURIComponent(id)}`, successOrder, signal ? { signal } : {}),
+  cancelOrder: (id: string) =>
+    requestApi(`/orders/${encodeURIComponent(id)}/cancel`, successOrder, {
+      method: "PATCH",
+    }),
 };

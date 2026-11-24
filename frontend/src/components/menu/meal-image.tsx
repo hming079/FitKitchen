@@ -25,7 +25,7 @@ export function MenuMealImage({
 }: {
   url: string | null;
   name: string;
-  fallbackUrl?: string;
+  fallbackUrl?: string | undefined;
   lazy?: boolean;
   thumbnail?: boolean;
   className?: string;

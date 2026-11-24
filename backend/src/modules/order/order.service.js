@@ -372,8 +372,16 @@ async function listOrders(userId, { page, page_size }) {
       [userId],
     );
     const result = await client.query(
-      `SELECT id, created_at, to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date, total_amount, shipping_fee, status, payment_method, payment_status, delivery_time_slot
-             FROM customer_orders WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      `SELECT o.id, o.created_at, to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date,
+              o.total_amount, o.shipping_fee, o.status, o.payment_method, o.payment_status, o.delivery_time_slot,
+              COALESCE(string_agg(COALESCE(m.name, 'Meal no longer available') || ' x' || oi.quantity,
+                ', ' ORDER BY oi.id), '') AS items_summary
+       FROM customer_orders o
+       LEFT JOIN order_items oi ON oi.order_id = o.id
+       LEFT JOIN meals m ON m.id = oi.meal_id
+       WHERE o.user_id = $1
+       GROUP BY o.id
+       ORDER BY o.created_at DESC, o.id DESC LIMIT $2 OFFSET $3`,
       [userId, page_size, (page - 1) * page_size],
     );
     await client.query("COMMIT");
@@ -389,20 +397,56 @@ async function listOrders(userId, { page, page_size }) {
   }
 }
 
-async function getOrder(userId, id) {
-  const order = await pool.query(
-    `SELECT id, created_at, to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date, total_amount, shipping_fee, status, payment_method, payment_status, delivery_time_slot
-         FROM customer_orders WHERE user_id = $1 AND id = $2`,
+async function findOrder(db, userId, id) {
+  const order = await db.query(
+    `SELECT id, created_at, to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date,
+            total_amount, shipping_fee, status, payment_method, payment_status, delivery_time_slot
+     FROM customer_orders WHERE user_id = $1 AND id = $2`,
     [userId, id],
   );
   if (!order.rowCount) return null;
-  const items = await pool.query(
+  const items = await db.query(
     `SELECT oi.id, oi.meal_id, COALESCE(m.name, 'Meal no longer available') AS name, oi.quantity, oi.unit_price,
                 oi.calories_snapshot, oi.protein_snapshot, oi.carbs_snapshot, oi.fat_snapshot, oi.options
          FROM order_items oi LEFT JOIN meals m ON m.id = oi.meal_id WHERE oi.order_id = $1 ORDER BY oi.id`,
     [id],
   );
   return { ...order.rows[0], items: items.rows };
+}
+
+async function getOrder(userId, id) {
+  return findOrder(pool, userId, id);
+}
+
+async function cancelOrder(userId, id) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      "SELECT status FROM customer_orders WHERE user_id = $1 AND id = $2 FOR UPDATE",
+      [userId, id],
+    );
+    if (!existing.rowCount)
+      throw problem(404, "ORDER_NOT_FOUND", "Order not found");
+    if (existing.rows[0].status !== "PENDING")
+      throw problem(
+        409,
+        "ORDER_NOT_CANCELLABLE",
+        "Only pending orders can be cancelled",
+      );
+    await client.query(
+      "UPDATE customer_orders SET status = 'CANCELLED' WHERE user_id = $1 AND id = $2",
+      [userId, id],
+    );
+    const order = await findOrder(client, userId, id);
+    await client.query("COMMIT");
+    return order;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = {
@@ -414,4 +458,5 @@ module.exports = {
   checkout,
   listOrders,
   getOrder,
+  cancelOrder,
 };
