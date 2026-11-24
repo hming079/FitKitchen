@@ -250,4 +250,54 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
         assert.equal(await auditCount(active.id), before);
         assert.equal((await request('/session', adminToken)).status, 200);
     });
+    await t.test('Admin orders are searchable and paginated, with stored items and conflict-safe fulfillment updates', async () => {
+        assert.equal((await request('/session')).body.data.role, 'ADMIN');
+        assert.equal((await request('/orders')).status, 403);
+        const seeded = await request('/admin/orders?search=%231');
+        assert.equal(seeded.status, 200);
+        assert.equal(seeded.body.data[0].id, '1');
+        const details = await request('/admin/orders/1');
+        assert.equal(details.body.data.items[0].unit_price, '65000.00');
+        assert.equal(typeof details.body.data.items[0].options.extra_meat, 'string');
+        assert.equal((await request('/admin/orders?page_size=1&page=2')).body.data.length, 1);
+        assert.equal((await request('/admin/orders?search=%25')).body.pagination.total, 0);
+        assert.equal((await request('/admin/orders/0')).status, 400);
+        assert.equal((await request('/admin/orders/9223372036854775807')).status, 404);
+        assert.equal((await request('/admin/orders/1', customerToken)).status, 403);
+        assert.equal((await request('/admin/orders', null)).status, 401);
+
+        const { rows: [order] } = await pool.query(`INSERT INTO customer_orders
+            (user_id, total_amount, status, payment_method, delivery_date)
+            VALUES ($1, 100, 'PENDING', 'COD', CURRENT_DATE) RETURNING id`, [active.id]);
+        const update = (expected_status, status, credential = adminToken) =>
+            request(`/admin/orders/${order.id}/status`, credential, 'PATCH', { expected_status, status });
+        assert.equal((await update('PENDING', 'PREPARING', customerToken)).status, 403);
+        assert.equal((await update('PENDING', 'COMPLETED')).status, 400);
+        assert.equal((await update('PENDING', 'PREPARING')).body.data.status, 'PREPARING');
+        assert.equal((await update('PENDING', 'PREPARING')).status, 200);
+        assert.equal((await update('PENDING', 'CANCELLED')).status, 409);
+        assert.equal((await request(`/admin/orders/${order.id}`)).body.data.status, 'PREPARING');
+    });
+    await t.test('Admin overview counts paid orders in the kitchen calendar and excludes cancelled orders', async () => {
+        const url = '/admin/overview?range=last_week';
+        assert.equal((await request(url, customerToken)).status, 403);
+        assert.equal((await request('/admin/overview?range=last_year')).status, 400);
+        const baseline = await request(url);
+        assert.equal(baseline.status, 200);
+        const before = baseline.body.data;
+        assert.equal(before.revenue_series.length, 7);
+        const { rows: [order] } = await pool.query(`INSERT INTO customer_orders
+            (total_amount, status, payment_method, payment_status, delivery_date, created_at)
+            VALUES (111, 'COMPLETED', 'COD', 'PAID', $1::date,
+                ($1::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE current_setting('TimeZone')),
+                (999, 'CANCELLED', 'COD', 'PAID', $1::date,
+                ($1::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE current_setting('TimeZone'))
+            RETURNING id`, [before.revenue_series[0].date]);
+        const after = (await request(url)).body.data;
+        assert.equal(Number(after.period_revenue), Number(before.period_revenue) + 111);
+        assert.equal(Number(after.revenue_series[0].revenue), Number(before.revenue_series[0].revenue) + 111);
+        assert.equal(after.daily_revenue, before.daily_revenue);
+        assert.equal(typeof order.id, 'string');
+        assert.ok(after.recent_orders.every(({ id, total_amount }) => typeof id === 'string' && typeof total_amount === 'string'));
+    });
 });
