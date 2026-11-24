@@ -1,21 +1,20 @@
 import { useEffect } from "react";
 import { useCartStore } from "@/stores/cart-store";
+import { ACCESS_TOKEN_KEY } from "@/lib/admin-api";
 
 export function useCartSync() {
   useEffect(() => {
-    let mounted = true;
-    const sync = async () => {
-      await useCartStore.persist.rehydrate();
-      if (mounted) await useCartStore.getState().syncCart();
+    const sync = () => {
+      if (sessionStorage.getItem(ACCESS_TOKEN_KEY)) void useCartStore.getState().loadCart();
+      else useCartStore.getState().reset();
     };
-    void sync();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") void useCartStore.getState().syncCart();
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
+    const reset = () => useCartStore.getState().reset();
+    sync();
+    window.addEventListener("fitkitchen:session-change", sync);
+    window.addEventListener("fitkitchen:session-invalid", reset);
     return () => {
-      mounted = false;
-      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("fitkitchen:session-change", sync);
+      window.removeEventListener("fitkitchen:session-invalid", reset);
     };
   }, []);
 }

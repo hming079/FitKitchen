@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StoreHeader } from "@/components/store-header";
 import { CustomerAccess } from "@/components/customer-access";
 import { CustomerSubscriptionsPanel } from "@/components/subscription-plans";
+import { CustomerOrders } from "@/components/customer-orders";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -24,7 +25,10 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Your Fuel Tracker | FitFuel Kitchen" },
-      { name: "description", content: "See your daily calories, protein, carbs, and fat alongside your goal targets." },
+      {
+        name: "description",
+        content: "See your daily calories, protein, carbs, and fat alongside your goal targets.",
+      },
       { name: "robots", content: "noindex, nofollow, noarchive" },
       { property: "og:title", content: "Your Fuel Tracker | FitFuel Kitchen" },
       {
@@ -404,6 +408,8 @@ function DashboardContent() {
         </Tabs>
 
         <CustomerSubscriptionsPanel />
+
+        <CustomerOrders />
 
         <section className="mt-8 grid gap-0 border-y border-border lg:grid-cols-[1.1fr_0.9fr]">
           <div className="py-7 lg:pr-10 lg:py-9">

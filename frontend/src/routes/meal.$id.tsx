@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { goalLabels } from "@/components/menu/meal-display";
-import { MenuMealImage } from "@/components/menu/meal-image";
+import { getLocalMealImage, MenuMealImage } from "@/components/menu/meal-image";
 import { MealPreview } from "@/components/menu/meal-preview";
 import { StoreHeader } from "@/components/store-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -91,6 +91,7 @@ function MealPage() {
           <MenuMealImage
             key={meal.image_url}
             url={meal.image_url}
+            fallbackUrl={getLocalMealImage(meal.name)}
             name={meal.name}
             className="rounded-lg"
           />
