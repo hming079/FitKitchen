@@ -6,7 +6,7 @@ FitKitchen is a fitness meal delivery project with a customer storefront and a s
 
 | Area                       | What works in this branch                                                                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer menu/cart         | Shopify Storefront API reads and cart operations. Sample meals are labeled previews; subscription/add-on selections are estimates until actual products are configured. |
+| Customer menu/cart/orders  | PostgreSQL menu, customer-owned cart, COD checkout, saved delivery addresses, and customer order history. Sample meals are labeled previews; subscription add-on selections remain estimates. |
 | Admin Customers            | PostgreSQL-backed search, status filtering, pagination, profiles/addresses, order history, current plans, and audited lock/unlock.                                      |
 | Authorization              | JWT verification, database-backed ADMIN/CUSTOMER roles, account-lock enforcement, and user/address ownership checks.                                                    |
 | Email/password login       | **Not implemented yet.** `/login` is a visual preview. Admin records and JWT fixtures do not replace a real login flow.                                                 |
@@ -132,6 +132,14 @@ node scripts/demo-token.js admin@admin-demo.example.test
 
 The seed creates one Admin and two Customers, including a customer with an address, unfinished/completed orders and a current plan. It refuses to overwrite existing demo emails and rolls back the attempt; if the accounts already exist, reuse them. Seed dates are relative to the run date, and the plan eventually expires.
 
+Demo account:
+
+Username:
+admin@admin-demo.example.test
+active@admin-demo.example.test
+orders@admin-demo.example.test
+Password: Value in env ADMIN_DEMO_PASSWORD
+
 Open `http://localhost:5173`, then paste the generated token into its browser developer console:
 
 ```js
@@ -178,7 +186,7 @@ Run Prettier only on changed files, for example `bunx --no-install prettier --ch
 | Admin access denied                                                | Check the browser origin/token, token expiry and database role/lock state. `/login` is not connected yet.                                       |
 | API 401 / 403                                                      | 401 means missing/invalid/expired session; 403 `FORBIDDEN` means insufficient role/ownership; 403 `ACCOUNT_LOCKED` means the account is locked. |
 | Port 3000/5173 is occupied                                         | Stop the previous dev process, or configure matching frontend/backend ports.                                                                    |
-| Shopify menu/checkout is unavailable                               | Shopify is separate from PostgreSQL Admin data. Check the Storefront response; labeled sample meals are previews, not real cart items.          |
+| Cart or order API returns 401/403                                   | Customer cart and checkout require a signed-in CUSTOMER session. Confirm the account role and session token.                                     |
 
 ## UI and team workflow
 

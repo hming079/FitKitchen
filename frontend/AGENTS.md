@@ -31,9 +31,9 @@ use the editor.
 
 ## Project architecture
 
-- Read the FitKitchen menu (`/api/meals`) through a public browser-side module. Keep cart and checkout on Shopify Storefront API cart responses and catalog meal ordering visibly disabled until the backend cart exists.
-- Keep subscription selection and meal add-on estimates as clearly labeled client-side previews until real Shopify subscription and add-on products are configured; checkout must include only actual Shopify cart items.
-- Keep operations management on a separate `/admin` route, with demo records isolated from customer-facing Shopify catalog and cart flows.
+- Read the FitKitchen menu (`/api/meals`) through a public browser-side module. Customer cart, checkout, and order history use authenticated `/api/cart` and `/api/orders` endpoints backed by PostgreSQL; prices and order snapshots are calculated by the backend.
+- Require a signed-in CUSTOMER session for cart mutations and checkout. Use saved customer addresses and the supported cash-on-delivery payment method; do not treat Shopify preview products or client-side estimates as purchasable items.
+- Keep subscription selection and meal add-on estimates as clearly labeled previews until their real purchase products are configured. Keep operations management on a separate `/admin` route and do not use Admin demo records as customer catalog data.
 
 ## UI design and review
 

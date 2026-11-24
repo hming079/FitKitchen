@@ -1,16 +1,31 @@
 import { useState } from "react";
 import { ImageOff } from "lucide-react";
+import chickenMealImage from "@/assets/teriyaki-chicken-meal.jpg";
+import beefMealImage from "@/assets/grilled-beef-meal.jpg";
+import cutComboImage from "@/assets/cut-combo-meal.jpg";
 import { cn } from "@/lib/utils";
+
+const localMealImages = new Map([
+  ["ức gà nướng măng tây", chickenMealImage],
+  ["bò sốt tiêu đen", beefMealImage],
+  ["combo 7 ngày giảm cân", cutComboImage],
+]);
+
+export function getLocalMealImage(name: string) {
+  return localMealImages.get(name.trim().toLocaleLowerCase("vi-VN"));
+}
 
 export function MenuMealImage({
   url,
   name,
+  fallbackUrl,
   lazy = false,
   thumbnail = false,
   className,
 }: {
   url: string | null;
   name: string;
+  fallbackUrl?: string | undefined;
   lazy?: boolean;
   thumbnail?: boolean;
   className?: string;
@@ -18,6 +33,8 @@ export function MenuMealImage({
   const [failed, setFailed] = useState(false);
   const src = url?.trim();
   const supported = src && (/^https?:\/\//i.test(src) || /^\/(?![/\\])/.test(src));
+  const [usingFallback, setUsingFallback] = useState(!supported && Boolean(fallbackUrl));
+  const imageSrc = usingFallback ? fallbackUrl : supported ? src : undefined;
   return (
     <div
       className={cn(
@@ -28,12 +45,18 @@ export function MenuMealImage({
         className,
       )}
     >
-      {supported && !failed ? (
+      {imageSrc && !failed ? (
         <img
-          src={src}
+          src={imageSrc}
           alt={name}
           loading={lazy ? "lazy" : "eager"}
-          onError={() => setFailed(true)}
+          onError={(event) => {
+            if (fallbackUrl && !usingFallback) {
+              setUsingFallback(true);
+              return;
+            }
+            setFailed(true);
+          }}
           referrerPolicy="no-referrer"
           className={cn("object-cover", thumbnail ? "size-full" : "aspect-[4/3] w-full")}
         />
