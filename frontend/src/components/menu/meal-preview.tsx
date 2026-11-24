@@ -14,6 +14,7 @@ import {
 import type { Meal } from "@/lib/catalog-api";
 import { menuApi } from "@/lib/menu-api";
 import { mealAmount, mealMacros, mealPrice } from "./meal-display";
+import { useCartStore } from "@/stores/cart-store";
 
 const measures = [{ key: "price", label: "Price", unit: "" }, ...mealMacros] as const;
 
@@ -23,6 +24,10 @@ function formatMeasure(value: number, unit: string) {
 
 export function MealPreview({ meal }: { meal: Meal }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [added, setAdded] = useState(false);
+  const addItem = useCartStore((state) => state.addItem);
+  const adding = useCartStore((state) => state.isLoading);
+  const cartError = useCartStore((state) => state.error);
   const query = useQuery({
     queryKey: ["menu", "options", meal.id],
     queryFn: ({ signal }) => menuApi.listOptions(meal.id, signal),
@@ -173,14 +178,26 @@ export function MealPreview({ meal }: { meal: Meal }) {
       )}
       <div className="space-y-2">
         <Button
-          disabled
+          disabled={meal.is_available !== true || adding || query.isPending || query.isError}
           aria-describedby="meal-ordering-note"
           className="min-h-11 w-full sm:w-auto"
+          onClick={async () => {
+            const success = await addItem(meal.id, [...selected]);
+            if (success) {
+              setAdded(true);
+              window.setTimeout(() => setAdded(false), 1400);
+            }
+          }}
         >
-          Online ordering opens soon
+          {adding ? "Adding…" : added ? "Added to cart" : "Add to cart"}
         </Button>
+        {(cartError || !meal.is_available) && (
+          <p role="alert" className="text-sm text-destructive">
+            {cartError || "This meal is not available to order."}
+          </p>
+        )}
         <p id="meal-ordering-note" className="text-sm text-muted-foreground">
-          This menu is available for browsing while we set up ordering.
+          Sign in with a customer account to save your cart and place an order.
         </p>
       </div>
     </div>
