@@ -121,3 +121,22 @@ test('loadConfig requires every setting and valid URLs', () => {
     assert.equal(vnpay.loadConfig({ ...env, PAYMENT_RESULT_URL: 'javascript:alert(1)' }), null);
     assert.equal(vnpay.loadConfig({ ...env, VNP_URL: 'not a url' }), null);
 });
+
+test('vnpAmount converts stored NUMERIC totals to integer VND x 100', () => {
+    const { vnpAmount } = require('../src/modules/payment/payment.service');
+    assert.equal(vnpAmount('65000.00'), 6500000);
+    assert.equal(vnpAmount('168000.00'), 16800000);
+    assert.equal(vnpAmount(85000), 8500000);
+});
+
+test('validateCreatePayment accepts only a positive order_id', () => {
+    const { validateCreatePayment } = require('../src/modules/payment/payment.validation');
+    assert.deepEqual(validateCreatePayment({ order_id: 42 }), { order_id: '42' });
+    assert.deepEqual(validateCreatePayment({ order_id: '7' }), { order_id: '7' });
+    for (const body of [
+        undefined, null, [], {}, { order_id: 0 }, { order_id: -1 }, { order_id: '1.5' }, { order_id: 'abc' },
+        { order_id: '9223372036854775808' }, { order_id: 1, amount: 100 }, { order_id: true }
+    ]) {
+        assert.throws(() => validateCreatePayment(body), error => error.status === 400 && error.code === 'VALIDATION_ERROR');
+    }
+});

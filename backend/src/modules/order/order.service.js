@@ -464,4 +464,6 @@ module.exports = {
   getOrder,
   getOrderItems,
   cancelOrder,
+  cents,
+  money,
 };
