@@ -73,8 +73,11 @@ async function createVnpayUrl({ userId, orderId, ip, now = new Date() }) {
             };
         } else {
             const createDate = vnpay.formatVnpDate(now);
+            const { rows: [{ count }] } = await client.query(
+                'SELECT COUNT(*)::int AS count FROM payment_transactions WHERE order_id = $1', [order.id]
+            );
             attempt = {
-                txnRef: vnpay.txnRef(order.id, createDate),
+                txnRef: vnpay.txnRef(order.id, count + 1, createDate),
                 createDate,
                 expiresAt: vnpay.expiryFrom(now)
             };
@@ -216,13 +219,13 @@ async function handleIpn(query) {
 // Builds the redirect from the configured PAYMENT_RESULT_URL, never from request input.
 function returnRedirectUrl(config, query) {
     const target = new URL(config.resultUrl);
-    const match = typeof query.vnp_TxnRef === 'string' ? /^([1-9]\d*)T\d{14}$/.exec(query.vnp_TxnRef) : null;
-    if (!vnpay.verify(query, config.hashSecret) || !match) {
+    const orderId = vnpay.orderIdFromTxnRef(query.vnp_TxnRef);
+    if (!vnpay.verify(query, config.hashSecret) || !orderId) {
         target.searchParams.set('result', 'invalid');
         return target.toString();
     }
     const paid = query.vnp_ResponseCode === '00' && query.vnp_TransactionStatus === '00';
-    target.searchParams.set('order_id', match[1]);
+    target.searchParams.set('order_id', orderId);
     target.searchParams.set('result', paid ? 'success' : 'failed');
     return target.toString();
 }

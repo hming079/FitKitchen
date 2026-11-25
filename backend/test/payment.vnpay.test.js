@@ -12,7 +12,7 @@ function sampleParams() {
         vnp_TmnCode: 'DEMO1234',
         vnp_Amount: '6500000',
         vnp_CurrCode: 'VND',
-        vnp_TxnRef: '42T20261126070000',
+        vnp_TxnRef: '42A1T20261126070000',
         vnp_OrderInfo: 'Thanh toan don hang 42',
         vnp_OrderType: 'other',
         vnp_Locale: 'vn',
@@ -92,7 +92,9 @@ test('formatVnpDate uses Asia/Ho_Chi_Minh regardless of the server time zone', (
 });
 
 test('txnRef, orderInfo, clientIp and withoutSignature', () => {
-    assert.equal(vnpay.txnRef('42', '20261126070000'), '42T20261126070000');
+    assert.equal(vnpay.txnRef('42', 3, '20261126070000'), '42A3T20261126070000');
+    assert.equal(vnpay.orderIdFromTxnRef('42A3T20261126070000'), '42');
+    for (const bad of ['42T20261126070000', '0A1T20261126070000', '42A1T2026', 'x', undefined]) assert.equal(vnpay.orderIdFromTxnRef(bad), null);
     assert.match(vnpay.orderInfo('42'), /^[\x20-\x7E]+$/);
     assert.equal(vnpay.clientIp('::ffff:10.0.0.5'), '10.0.0.5');
     assert.equal(vnpay.clientIp('::1'), '127.0.0.1');

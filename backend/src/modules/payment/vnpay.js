@@ -76,8 +76,18 @@ function buildPaymentUrl(paymentUrl, params, hashSecret) {
     return `${paymentUrl}?${signData(params)}&vnp_SecureHash=${sign(params, hashSecret)}`;
 }
 
-function txnRef(orderId, createDate) {
-    return `${orderId}T${createDate}`;
+// <orderId>A<attempt>T<yyyyMMddHHmmss>: the attempt number keeps references unique
+// even when a new attempt is created within the same second as the previous one.
+const TXN_REF_PATTERN = /^([1-9]\d*)A([1-9]\d*)T(\d{14})$/;
+
+function txnRef(orderId, attempt, createDate) {
+    return `${orderId}A${attempt}T${createDate}`;
+}
+
+// Returns the order id encoded in a reference, or null when it is malformed.
+function orderIdFromTxnRef(value) {
+    const match = typeof value === 'string' ? TXN_REF_PATTERN.exec(value) : null;
+    return match ? match[1] : null;
 }
 
 // ASCII only; VNPay rejects Vietnamese diacritics in vnp_OrderInfo.
@@ -110,6 +120,7 @@ module.exports = {
     verify,
     buildPaymentUrl,
     txnRef,
+    orderIdFromTxnRef,
     orderInfo,
     withoutSignature,
     clientIp
