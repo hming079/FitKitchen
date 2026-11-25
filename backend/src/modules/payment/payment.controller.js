@@ -17,5 +17,17 @@ module.exports = {
         if (!vnpay.loadConfig()) return notConfigured(res);
         const data = await service.createVnpayUrl({ userId: req.user.id, orderId: order_id, ip: req.ip });
         return res.json({ success: true, data });
+    },
+
+    // Always HTTP 200 with { RspCode, Message }; errors never reach the shared handler.
+    async vnpayIpn(req, res) {
+        let result;
+        try {
+            result = await service.handleIpn(req.query || {});
+        } catch (error) {
+            console.error('VNPay IPN failed:', error.code || error.name);
+            result = service.IPN.UNKNOWN;
+        }
+        return res.status(200).json(result);
     }
 };

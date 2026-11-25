@@ -151,3 +151,63 @@ test('order checkout validation accepts COD and ONLINE only', () => {
         assert.throws(() => validateCheckout(body(method)), error => error.status === 400);
     }
 });
+
+const IPN_ENV = {
+    VNP_TMN_CODE: 'DEMO1234',
+    VNP_HASH_SECRET: SECRET,
+    VNP_URL: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+    VNP_RETURN_URL: 'http://localhost:3000/api/payments/vnpay/return',
+    PAYMENT_RESULT_URL: 'http://localhost:5173/payment/result'
+};
+
+function withEnv(values, fn) {
+    const saved = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
+    Object.assign(process.env, values);
+    return Promise.resolve(fn()).finally(() => {
+        for (const [key, value] of Object.entries(saved)) {
+            if (value === undefined) delete process.env[key]; else process.env[key] = value;
+        }
+    });
+}
+
+function fakeRes() {
+    return {
+        statusCode: null, body: null,
+        status(code) { this.statusCode = code; return this; },
+        json(body) { this.body = body; return this; }
+    };
+}
+
+test('IPN rejects a bad checksum with 97 before touching the database', async () => {
+    const { handleIpn } = require('../src/modules/payment/payment.service');
+    await withEnv(IPN_ENV, async () => {
+        const params = { ...sampleParams(), vnp_ResponseCode: '00', vnp_TransactionStatus: '00' };
+        assert.deepEqual(await handleIpn({ ...params, vnp_SecureHash: '00'.repeat(64) }), { RspCode: '97', Message: 'Invalid Checksum' });
+        assert.deepEqual(await handleIpn({}), { RspCode: '97', Message: 'Invalid Checksum' });
+    });
+});
+
+test('IPN without payment configuration answers 99', async () => {
+    const { handleIpn } = require('../src/modules/payment/payment.service');
+    await withEnv({ VNP_HASH_SECRET: '' }, async () => {
+        assert.equal((await handleIpn({ vnp_TxnRef: '1' })).RspCode, '99');
+    });
+});
+
+test('IPN controller turns unexpected errors into HTTP 200 RspCode 99', async () => {
+    const service = require('../src/modules/payment/payment.service');
+    const controller = require('../src/modules/payment/payment.controller');
+    const original = service.handleIpn;
+    const originalError = console.error;
+    service.handleIpn = async () => { throw Object.assign(new Error('boom'), { code: 'ECONNREFUSED' }); };
+    console.error = () => {};
+    try {
+        const res = fakeRes();
+        await controller.vnpayIpn({ query: {} }, res);
+        assert.equal(res.statusCode, 200);
+        assert.deepEqual(res.body, { RspCode: '99', Message: 'Unknown error' });
+    } finally {
+        service.handleIpn = original;
+        console.error = originalError;
+    }
+});

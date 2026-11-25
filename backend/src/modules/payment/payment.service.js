@@ -109,4 +109,107 @@ async function createVnpayUrl({ userId, orderId, ip, now = new Date() }) {
     }
 }
 
-module.exports = { createVnpayUrl, vnpAmount };
+const IPN = {
+    SUCCESS: { RspCode: '00', Message: 'Confirm Success' },
+    ORDER_NOT_FOUND: { RspCode: '01', Message: 'Order not found' },
+    ALREADY_CONFIRMED: { RspCode: '02', Message: 'Order already confirmed' },
+    INVALID_AMOUNT: { RspCode: '04', Message: 'Invalid amount' },
+    INVALID_CHECKSUM: { RspCode: '97', Message: 'Invalid Checksum' },
+    UNKNOWN: { RspCode: '99', Message: 'Unknown error' }
+};
+
+function text(value, maxLength) {
+    return typeof value === 'string' && value ? value.slice(0, maxLength) : null;
+}
+
+// Records the callback on the attempt row (signature fields removed).
+async function recordAttempt(client, transactionId, query, status) {
+    await client.query(
+        `UPDATE payment_transactions
+         SET status = $2, vnp_transaction_no = $3, bank_code = $4, response_code = $5,
+             transaction_status = $6, pay_date = $7, raw_data = $8::jsonb, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [
+            transactionId,
+            status,
+            text(query.vnp_TransactionNo, 64),
+            text(query.vnp_BankCode, 32),
+            text(query.vnp_ResponseCode, 8),
+            text(query.vnp_TransactionStatus, 8),
+            text(query.vnp_PayDate, 14),
+            JSON.stringify(vnpay.withoutSignature(query))
+        ]
+    );
+}
+
+// VNPay server-to-server callback. Checks run in VNPay's documented order:
+// checksum (97), transaction/order (01), amount (04), already confirmed (02), then 00.
+// One client and row locks (order, then attempt) make repeated IPNs take effect once.
+async function handleIpn(query) {
+    const config = vnpay.loadConfig();
+    if (!config) {
+        console.error('VNPay IPN rejected: payment is not configured');
+        return IPN.UNKNOWN;
+    }
+    if (!vnpay.verify(query, config.hashSecret)) return IPN.INVALID_CHECKSUM;
+
+    const txnRef = typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
+    if (!txnRef) return IPN.ORDER_NOT_FOUND;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { rows: [ref] } = await client.query(
+            'SELECT order_id FROM payment_transactions WHERE txn_ref = $1', [txnRef]
+        );
+        if (!ref) {
+            await client.query('ROLLBACK');
+            return IPN.ORDER_NOT_FOUND;
+        }
+        const { rows: [order] } = await client.query(
+            'SELECT id, status, payment_status FROM customer_orders WHERE id = $1 FOR UPDATE', [ref.order_id]
+        );
+        const { rows: [attempt] } = await client.query(
+            'SELECT id, amount::text AS amount, status FROM payment_transactions WHERE txn_ref = $1 FOR UPDATE', [txnRef]
+        );
+        if (!order || !attempt) {
+            await client.query('ROLLBACK');
+            return IPN.ORDER_NOT_FOUND;
+        }
+        if (typeof query.vnp_Amount !== 'string' || query.vnp_Amount !== attempt.amount) {
+            await client.query('ROLLBACK');
+            return IPN.INVALID_AMOUNT;
+        }
+
+        const paid = query.vnp_ResponseCode === '00' && query.vnp_TransactionStatus === '00';
+        if (attempt.status !== 'PENDING') {
+            await client.query('ROLLBACK');
+            return IPN.ALREADY_CONFIRMED;
+        }
+        if (order.payment_status === 'PAID') {
+            // An older attempt reported after the order was already paid by another attempt.
+            await recordAttempt(client, attempt.id, query, paid ? 'SUCCESS' : 'FAILED');
+            await client.query('COMMIT');
+            if (paid) console.warn(`VNPay duplicate payment for order ${order.id} (txn ${txnRef}); refund manually`);
+            return IPN.ALREADY_CONFIRMED;
+        }
+
+        await recordAttempt(client, attempt.id, query, paid ? 'SUCCESS' : 'FAILED');
+        await client.query(
+            'UPDATE customer_orders SET payment_status = $2 WHERE id = $1',
+            [order.id, paid ? 'PAID' : 'FAILED']
+        );
+        await client.query('COMMIT');
+        if (paid && order.status === 'CANCELLED') {
+            console.warn(`VNPay payment received for cancelled order ${order.id} (txn ${txnRef}); refund manually`);
+        }
+        return IPN.SUCCESS;
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+module.exports = { createVnpayUrl, handleIpn, vnpAmount, IPN };
