@@ -15,6 +15,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NutritionRouteImport } from './routes/nutrition'
 import { Route as MealIdRouteImport } from './routes/meal.$id'
+import { Route as PaymentResultRouteImport } from './routes/payment.result'
 import { Route as ProductHandleRouteImport } from './routes/product.$handle'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const MealIdRoute = MealIdRouteImport.update({
   path: '/meal/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PaymentResultRoute = PaymentResultRouteImport.update({
+  id: '/payment/result',
+  path: '/payment/result',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductHandleRoute = ProductHandleRouteImport.update({
   id: '/product/$handle',
   path: '/product/$handle',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/nutrition': typeof NutritionRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/nutrition': typeof NutritionRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/nutrition': typeof NutritionRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/nutrition'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/nutrition'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/nutrition'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NutritionRoute: typeof NutritionRoute
   MealIdRoute: typeof MealIdRoute
+  PaymentResultRoute: typeof PaymentResultRoute
   ProductHandleRoute: typeof ProductHandleRoute
 }
 
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MealIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/payment/result': {
+      id: '/payment/result'
+      path: '/payment/result'
+      fullPath: '/payment/result'
+      preLoaderRoute: typeof PaymentResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$handle': {
       id: '/product/$handle'
       path: '/product/$handle'
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NutritionRoute: NutritionRoute,
   MealIdRoute: MealIdRoute,
+  PaymentResultRoute: PaymentResultRoute,
   ProductHandleRoute: ProductHandleRoute,
 }
 export const routeTree = rootRouteImport
