@@ -140,3 +140,14 @@ test('validateCreatePayment accepts only a positive order_id', () => {
         assert.throws(() => validateCreatePayment(body), error => error.status === 400 && error.code === 'VALIDATION_ERROR');
     }
 });
+
+test('order checkout validation accepts COD and ONLINE only', () => {
+    const { validateCheckout } = require('../src/modules/order/order.validation');
+    const today = new Date().toISOString().slice(0, 10);
+    const body = method => ({ address_id: 1, delivery_date: today, delivery_time_slot: '11:00 - 12:00', payment_method: method });
+    assert.equal(validateCheckout(body('COD')).payment_method, 'COD');
+    assert.equal(validateCheckout(body('ONLINE')).payment_method, 'ONLINE');
+    for (const method of [undefined, 'online', 'VNPAY', 'CARD', '']) {
+        assert.throws(() => validateCheckout(body(method)), error => error.status === 400);
+    }
+});
