@@ -13,12 +13,13 @@ export const POLL_INTERVAL_MS = 3000;
 export const POLL_LIMIT_MS = 60000;
 
 // Only order_id is read. VNPay's `result` query value is ignored: the page always asks the
-// backend, whose state is updated by the signed IPN.
+// backend, whose state is updated by the signed IPN. The router parses `?order_id=6` as a
+// number; keeping it numeric avoids a canonicalizing redirect to `?order_id="6"`.
 const searchSchema = z.object({
   order_id: z
-    .union([z.string(), z.number()])
-    .transform(String)
-    .pipe(z.string().regex(/^[1-9]\d*$/))
+    .union([z.string().regex(/^[1-9]\d*$/), z.number()])
+    .transform(Number)
+    .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER))
     .optional()
     .catch(undefined),
 });
@@ -49,7 +50,7 @@ function PaymentResultPage() {
     <div className="min-h-screen bg-background text-foreground">
       <StoreHeader />
       <main className="mx-auto max-w-lg px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
-        <PaymentResult orderId={order_id} />
+        <PaymentResult orderId={order_id === undefined ? undefined : String(order_id)} />
       </main>
     </div>
   );

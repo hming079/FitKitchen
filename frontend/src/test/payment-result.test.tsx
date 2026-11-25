@@ -88,8 +88,11 @@ afterEach(() => {
 describe("payment result search", () => {
   it("keeps only a valid order_id and ignores VNPay's result value", () => {
     const validate = Route.options.validateSearch as (search: Record<string, unknown>) => unknown;
-    expect(validate({ order_id: 6, result: "success" })).toEqual({ order_id: "6" });
-    expect(validate({ order_id: "abc", result: "success" })).toEqual({ order_id: undefined });
+    expect(validate({ order_id: 6, result: "success" })).toEqual({ order_id: 6 });
+    expect(validate({ order_id: "6" })).toEqual({ order_id: 6 });
+    for (const order_id of ["abc", 0, -1, 1.5, "1e3", Number.MAX_SAFE_INTEGER + 2]) {
+      expect(validate({ order_id, result: "success" })).toEqual({ order_id: undefined });
+    }
   });
 });
 
