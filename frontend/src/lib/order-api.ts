@@ -83,6 +83,72 @@ export const orderSchema = z.object({
 });
 export type Order = z.infer<typeof orderSchema>;
 const successOrder = z.object({ success: z.literal(true), data: orderSchema });
+
+export type PaymentMethod = "COD" | "ONLINE";
+// The only payment page the storefront may send customers to (VNPay Sandbox).
+export const VNPAY_ORIGIN = "https://sandbox.vnpayment.vn";
+
+/** Returns the URL only when it is a well-formed https URL on the VNPay origin. */
+export function vnpayRedirectUrl(value: string | null | undefined) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === VNPAY_ORIGIN ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+const checkoutPaymentSchema = z.object({
+  provider: z.literal("VNPAY"),
+  redirect_url: z.string().nullable(),
+});
+const successCheckout = z.object({
+  success: z.literal(true),
+  data: orderSchema.extend({ payment: checkoutPaymentSchema.optional() }),
+});
+export type CheckoutOrder = z.infer<typeof successCheckout>["data"];
+
+const vnpayPaymentSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    provider: z.literal("VNPAY"),
+    order_id: id,
+    txn_ref: z.string(),
+    expires_at: z.string(),
+    redirect_url: z.string(),
+  }),
+});
+const paymentStatusSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    order_id: id,
+    order_status: z.string(),
+    payment_method: z.string(),
+    payment_status: z.string(),
+    total_amount: amount,
+    can_retry: z.boolean(),
+    latest_transaction: z
+      .object({
+        txn_ref: z.string(),
+        status: z.string(),
+        response_code: z.string().nullable(),
+        expires_at: z.string(),
+        created_at: z.string(),
+      })
+      .nullable(),
+  }),
+});
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>["data"];
+
+/** Mirrors the backend rule for creating a new VNPay URL; the backend still decides. */
+export function canPayOnline(order: Pick<Order, "payment_method" | "status" | "payment_status">) {
+  return (
+    order.payment_method === "ONLINE" &&
+    order.status === "PENDING" &&
+    (order.payment_status === "PENDING" || order.payment_status === "FAILED")
+  );
+}
 const ordersSchema = z.object({
   success: z.literal(true),
   data: z.array(orderSchema),
@@ -124,11 +190,27 @@ export const orderApi = {
       z.object({ success: z.literal(true), data: addressSchema }),
       { method: "POST", body: JSON.stringify(payload) },
     ),
-  checkout: (payload: { address_id: string; delivery_date: string; delivery_time_slot?: string }) =>
-    requestApi("/orders/checkout", successOrder, {
+  checkout: (payload: {
+    address_id: string;
+    delivery_date: string;
+    delivery_time_slot?: string;
+    payment_method?: PaymentMethod;
+  }) =>
+    requestApi("/orders/checkout", successCheckout, {
       method: "POST",
-      body: JSON.stringify({ ...payload, payment_method: "COD" }),
+      body: JSON.stringify({ payment_method: "COD", ...payload }),
     }),
+  createVnpayPayment: (orderId: string) =>
+    requestApi("/payments/vnpay", vnpayPaymentSchema, {
+      method: "POST",
+      body: JSON.stringify({ order_id: orderId }),
+    }),
+  paymentStatus: (orderId: string, signal?: AbortSignal) =>
+    requestApi(
+      `/payments/orders/${encodeURIComponent(orderId)}`,
+      paymentStatusSchema,
+      signal ? { signal } : {},
+    ),
   orders: (signal?: AbortSignal) =>
     requestApi("/orders?page=1&page_size=20", ordersSchema, signal ? { signal } : {}),
   order: (id: string, signal?: AbortSignal) =>
