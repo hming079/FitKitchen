@@ -99,6 +99,19 @@ export function vnpayRedirectUrl(value: string | null | undefined) {
   }
 }
 
+// Indirection so tests can observe navigation without replacing window.location.
+export const browserNavigation = {
+  assign: (url: string) => window.location.assign(url),
+};
+
+/** Opens the VNPay page only for a trusted URL; returns false when the URL is rejected. */
+export function openVnpayPage(value: string | null | undefined) {
+  const url = vnpayRedirectUrl(value);
+  if (!url) return false;
+  browserNavigation.assign(url);
+  return true;
+}
+
 const checkoutPaymentSchema = z.object({
   provider: z.literal("VNPAY"),
   redirect_url: z.string().nullable(),
