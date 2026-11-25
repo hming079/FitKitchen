@@ -65,15 +65,24 @@ async function updateStatus(id, body) {
         !transitions.get(body.expected_status)?.includes(body.status)) {
         throw problem(400, 'VALIDATION_ERROR', 'Order status transition is not supported');
     }
+    // ONLINE orders must be PAID before preparation; checked in the same atomic UPDATE.
     const { rows: [updated] } = await pool.query(
-        'UPDATE customer_orders SET status = $2 WHERE id = $1 AND status = $3 RETURNING id, status',
-        [id, body.status, body.expected_status],
+        `UPDATE customer_orders SET status = $2 WHERE id = $1 AND status = $3
+         AND NOT ($4 AND payment_method = 'ONLINE' AND payment_status IS DISTINCT FROM 'PAID')
+         RETURNING id, status`,
+        [id, body.status, body.expected_status, body.status === 'PREPARING'],
     );
     if (updated) return updated;
 
-    const { rows: [current] } = await pool.query('SELECT id, status FROM customer_orders WHERE id = $1', [id]);
+    const { rows: [current] } = await pool.query(
+        'SELECT id, status, payment_method, payment_status FROM customer_orders WHERE id = $1', [id],
+    );
     if (!current) throw problem(404, 'ORDER_NOT_FOUND', 'Order not found');
-    if (current.status === body.status) return current;
+    if (current.status === body.status) return { id: current.id, status: current.status };
+    if (body.status === 'PREPARING' && current.status === body.expected_status &&
+        current.payment_method === 'ONLINE' && current.payment_status !== 'PAID') {
+        throw problem(409, 'PAYMENT_REQUIRED', 'Online orders must be paid before preparation');
+    }
     throw problem(409, 'ORDER_STATUS_CHANGED', 'This order has changed. Review its current status and try again.');
 }
 

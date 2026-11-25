@@ -427,7 +427,7 @@ async function cancelOrder(userId, id) {
   try {
     await client.query("BEGIN");
     const existing = await client.query(
-      "SELECT status FROM customer_orders WHERE user_id = $1 AND id = $2 FOR UPDATE",
+      "SELECT status, payment_method, payment_status FROM customer_orders WHERE user_id = $1 AND id = $2 FOR UPDATE",
       [userId, id],
     );
     if (!existing.rowCount)
@@ -437,6 +437,16 @@ async function cancelOrder(userId, id) {
         409,
         "ORDER_NOT_CANCELLABLE",
         "Only pending orders can be cancelled",
+      );
+    // No refund flow yet: a paid online order cannot be self-cancelled.
+    if (
+      existing.rows[0].payment_method === "ONLINE" &&
+      existing.rows[0].payment_status === "PAID"
+    )
+      throw problem(
+        409,
+        "ORDER_PAID",
+        "This order has been paid online; contact support to cancel it",
       );
     await client.query(
       "UPDATE customer_orders SET status = 'CANCELLED' WHERE user_id = $1 AND id = $2",
