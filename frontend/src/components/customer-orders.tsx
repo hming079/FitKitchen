@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { orderApi, type Order } from "@/lib/order-api";
+import { canPayOnline, openVnpayPage, orderApi, type Order } from "@/lib/order-api";
 
 const money = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -37,6 +37,13 @@ const dates = new Intl.DateTimeFormat("vi-VN", {
 
 function humanStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function paymentText(order: Pick<Order, "payment_method" | "payment_status">) {
+  if (order.payment_method !== "ONLINE") return "Cash on delivery";
+  if (order.payment_status === "PAID") return "Paid with VNPay";
+  if (order.payment_status === "FAILED") return "VNPay payment failed";
+  return "VNPay payment pending";
 }
 
 function statusVariant(status: string) {
@@ -61,6 +68,39 @@ export function CustomerOrders() {
     enabled: selectedOrderId !== null,
     retry: false,
   });
+  const [redirectingId, setRedirectingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState<{ orderId: string; message: string } | null>(null);
+  const payNow = useMutation({
+    mutationFn: (orderId: string) => orderApi.createVnpayPayment(orderId),
+    onMutate: () => setPayError(null),
+    onSuccess: (response, orderId) => {
+      if (openVnpayPage(response.data.redirect_url)) setRedirectingId(orderId);
+      else setPayError({ orderId, message: "The VNPay payment page could not be opened." });
+    },
+    onError: (failure, orderId) =>
+      setPayError({
+        orderId,
+        message: failure instanceof Error ? failure.message : "Could not start the VNPay payment.",
+      }),
+  });
+  const paying = (orderId: string) =>
+    (payNow.isPending && payNow.variables === orderId) || redirectingId === orderId;
+  const payButton = (orderId: string, className: string) => (
+    <Button
+      className={className}
+      disabled={payNow.isPending || redirectingId !== null}
+      onClick={() => payNow.mutate(orderId)}
+      aria-label={`Pay now for order ${orderId}`}
+    >
+      {paying(orderId) ? "Opening VNPay…" : "Pay now"}
+    </Button>
+  );
+  const payErrorFor = (orderId: string) =>
+    payError?.orderId === orderId ? (
+      <p role="alert" className="text-sm text-destructive">
+        {payError.message}
+      </p>
+    ) : null;
   const cancelOrder = useMutation({
     mutationFn: orderApi.cancelOrder,
     onSuccess: async (response) => {
@@ -125,17 +165,19 @@ export function CustomerOrders() {
                   </Badge>
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Delivery {dates.format(new Date(`${item.delivery_date}T00:00:00Z`))} · Cash on
-                  delivery
+                  Delivery {dates.format(new Date(`${item.delivery_date}T00:00:00Z`))} ·{" "}
+                  {paymentText(item)}
                 </p>
                 {item.items_summary && (
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
                     {item.items_summary}
                   </p>
                 )}
+                {payErrorFor(item.id)}
               </div>
-              <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-col sm:items-end">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
                 <p className="font-semibold tabular-nums">{money.format(item.total_amount)}</p>
+                {canPayOnline(item) && payButton(item.id, "min-h-10")}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -189,17 +231,26 @@ export function CustomerOrders() {
                 : "Could not cancel this order. Refresh and try again."}
             </p>
           )}
+          {order.data && payErrorFor(order.data.data.id)}
           <DialogFooter>
-            {order.data?.data.status === "PENDING" && (
-              <Button
-                variant="destructive"
-                className="min-h-11"
-                disabled={cancelOrder.isPending}
-                onClick={() => setCancelTarget(order.data!.data.id)}
-              >
-                Cancel order
-              </Button>
-            )}
+            {order.data &&
+              canPayOnline(order.data.data) &&
+              payButton(order.data.data.id, "min-h-11")}
+            {order.data?.data.status === "PENDING" &&
+              // Paid online orders have no refund flow; the backend rejects self-cancellation.
+              !(
+                order.data.data.payment_method === "ONLINE" &&
+                order.data.data.payment_status === "PAID"
+              ) && (
+                <Button
+                  variant="destructive"
+                  className="min-h-11"
+                  disabled={cancelOrder.isPending}
+                  onClick={() => setCancelTarget(order.data!.data.id)}
+                >
+                  Cancel order
+                </Button>
+              )}
             <Button
               variant="outline"
               className="min-h-11"
@@ -259,7 +310,7 @@ function OrderDetails({ order }: { order: Order }) {
         </div>
         <div>
           <dt className="text-muted-foreground">Payment</dt>
-          <dd className="mt-1 font-medium">Cash on delivery</dd>
+          <dd className="mt-1 font-medium">{paymentText(order)}</dd>
         </div>
       </dl>
       <section aria-label="Ordered meals">
