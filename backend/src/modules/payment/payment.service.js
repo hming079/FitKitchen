@@ -212,4 +212,65 @@ async function handleIpn(query) {
     }
 }
 
-module.exports = { createVnpayUrl, handleIpn, vnpAmount, IPN };
+// Browser return from VNPay: display only, never updates the database (IPN is authoritative).
+// Builds the redirect from the configured PAYMENT_RESULT_URL, never from request input.
+function returnRedirectUrl(config, query) {
+    const target = new URL(config.resultUrl);
+    const match = typeof query.vnp_TxnRef === 'string' ? /^([1-9]\d*)T\d{14}$/.exec(query.vnp_TxnRef) : null;
+    if (!vnpay.verify(query, config.hashSecret) || !match) {
+        target.searchParams.set('result', 'invalid');
+        return target.toString();
+    }
+    const paid = query.vnp_ResponseCode === '00' && query.vnp_TransactionStatus === '00';
+    target.searchParams.set('order_id', match[1]);
+    target.searchParams.set('result', paid ? 'success' : 'failed');
+    return target.toString();
+}
+
+function invalidRedirectUrl(config) {
+    const target = new URL(config.resultUrl);
+    target.searchParams.set('result', 'invalid');
+    return target.toString();
+}
+
+// Real payment state of the customer's own order, read after returning from VNPay.
+async function paymentStatus(userId, orderId) {
+    const { rows: [order] } = await pool.query(
+        `SELECT id::text AS id, status, payment_method, payment_status, total_amount::text AS total_amount
+         FROM customer_orders WHERE id = $1 AND user_id = $2`,
+        [orderId, userId]
+    );
+    if (!order) throw problem(404, 'ORDER_NOT_FOUND', 'Order not found');
+    const { rows: [latest] } = await pool.query(
+        `SELECT txn_ref, status, response_code, expires_at, created_at
+         FROM payment_transactions WHERE order_id = $1
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [orderId]
+    );
+    return {
+        order_id: order.id,
+        order_status: order.status,
+        payment_method: order.payment_method,
+        payment_status: order.payment_status,
+        total_amount: order.total_amount,
+        can_retry: order.payment_method === 'ONLINE' && order.status === 'PENDING' &&
+            ['PENDING', 'FAILED'].includes(order.payment_status),
+        latest_transaction: latest ? {
+            txn_ref: latest.txn_ref,
+            status: latest.status,
+            response_code: latest.response_code,
+            expires_at: new Date(latest.expires_at).toISOString(),
+            created_at: new Date(latest.created_at).toISOString()
+        } : null
+    };
+}
+
+module.exports = {
+    createVnpayUrl,
+    handleIpn,
+    returnRedirectUrl,
+    invalidRedirectUrl,
+    paymentStatus,
+    vnpAmount,
+    IPN
+};

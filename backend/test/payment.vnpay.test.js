@@ -211,3 +211,53 @@ test('IPN controller turns unexpected errors into HTTP 200 RspCode 99', async ()
         console.error = originalError;
     }
 });
+
+test('return redirect: success, failed and invalid go to the configured result URL only', () => {
+    const service = require('../src/modules/payment/payment.service');
+    const config = vnpay.loadConfig(IPN_ENV);
+    const signed = extra => {
+        const params = { ...sampleParams(), ...extra };
+        return { ...params, vnp_SecureHash: vnpay.sign(params, SECRET) };
+    };
+    const target = query => new URL(service.returnRedirectUrl(config, query));
+
+    const ok = target(signed({ vnp_ResponseCode: '00', vnp_TransactionStatus: '00' }));
+    assert.equal(`${ok.origin}${ok.pathname}`, 'http://localhost:5173/payment/result');
+    assert.equal(ok.searchParams.get('order_id'), '42');
+    assert.equal(ok.searchParams.get('result'), 'success');
+
+    const failed = target(signed({ vnp_ResponseCode: '24', vnp_TransactionStatus: '02' }));
+    assert.equal(failed.searchParams.get('result'), 'failed');
+
+    const tampered = signed({ vnp_ResponseCode: '24', vnp_TransactionStatus: '02' });
+    const invalid = target({ ...tampered, vnp_ResponseCode: '00', vnp_TransactionStatus: '00' });
+    assert.equal(invalid.searchParams.get('result'), 'invalid');
+    assert.equal(invalid.searchParams.get('order_id'), null);
+
+    const badRef = target(signed({ vnp_TxnRef: 'abc', vnp_ResponseCode: '00', vnp_TransactionStatus: '00' }));
+    assert.equal(badRef.searchParams.get('result'), 'invalid');
+
+    // A signed but attacker-chosen return URL parameter never changes the destination.
+    const injected = target(signed({ vnp_ReturnUrl: 'https://evil.example/x', vnp_ResponseCode: '00', vnp_TransactionStatus: '00' }));
+    assert.equal(injected.origin, 'http://localhost:5173');
+});
+
+test('return controller redirects to result=invalid when building the URL throws', async () => {
+    const service = require('../src/modules/payment/payment.service');
+    const controller = require('../src/modules/payment/payment.controller');
+    const original = service.returnRedirectUrl;
+    const originalError = console.error;
+    service.returnRedirectUrl = () => { throw new Error('boom'); };
+    console.error = () => {};
+    try {
+        await withEnv(IPN_ENV, () => {
+            const res = { redirect(status, location) { this.status = status; this.location = location; return this; } };
+            controller.vnpayReturn({ query: {} }, res);
+            assert.equal(res.status, 302);
+            assert.equal(res.location, 'http://localhost:5173/payment/result?result=invalid');
+        });
+    } finally {
+        service.returnRedirectUrl = original;
+        console.error = originalError;
+    }
+});
