@@ -85,8 +85,10 @@ export function CustomerOrders() {
   });
   const paying = (orderId: string) =>
     (payNow.isPending && payNow.variables === orderId) || redirectingId === orderId;
-  const payButton = (orderId: string, className: string) => (
+  // Lists keep one primary action per region, so rows use outline; the details dialog uses primary.
+  const payButton = (orderId: string, className: string, variant: "default" | "outline") => (
     <Button
+      variant={variant}
       className={className}
       disabled={payNow.isPending || redirectingId !== null}
       onClick={() => payNow.mutate(orderId)}
@@ -177,7 +179,7 @@ export function CustomerOrders() {
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
                 <p className="font-semibold tabular-nums">{money.format(item.total_amount)}</p>
-                {canPayOnline(item) && payButton(item.id, "min-h-10")}
+                {canPayOnline(item) && payButton(item.id, "min-h-10", "outline")}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -235,7 +237,7 @@ export function CustomerOrders() {
           <DialogFooter>
             {order.data &&
               canPayOnline(order.data.data) &&
-              payButton(order.data.data.id, "min-h-11")}
+              payButton(order.data.data.id, "min-h-11", "default")}
             {order.data?.data.status === "PENDING" &&
               // Paid online orders have no refund flow; the backend rejects self-cancellation.
               !(

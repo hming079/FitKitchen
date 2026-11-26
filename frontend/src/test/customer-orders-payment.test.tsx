@@ -92,6 +92,8 @@ describe("customer orders payment", () => {
 
     expect(screen.getAllByRole("button", { name: /^Pay now/ })).toHaveLength(1);
     const pay = screen.getByRole("button", { name: "Pay now for order 7" });
+    // One primary action per region: list rows use the outline variant.
+    expect(pay).not.toHaveClass("bg-primary");
     fireEvent.click(pay);
     await waitFor(() => expect(assign).toHaveBeenCalledWith(VNPAY_URL));
     expect(pay).toBeDisabled();
