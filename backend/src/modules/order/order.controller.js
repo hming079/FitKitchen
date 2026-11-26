@@ -1,10 +1,27 @@
 const service = require("./order.service");
+const paymentService = require("../payment/payment.service");
 const {
   validateCartItem,
   validateCheckout,
   validatePage,
   positiveId,
 } = require("./order.validation");
+
+// Runs after the checkout transaction has committed. A payment URL failure must not
+// undo the order; the customer can retry with POST /api/payments/vnpay.
+async function onlinePayment(req, order) {
+  try {
+    const payment = await paymentService.createVnpayUrl({
+      userId: req.user.id,
+      orderId: order.id,
+      ip: req.ip,
+    });
+    return { provider: "VNPAY", redirect_url: payment.redirect_url };
+  } catch (error) {
+    console.error("VNPay URL creation failed:", error.code || error.name);
+    return { provider: "VNPAY", redirect_url: null };
+  }
+}
 
 function createOrderController() {
   return {
@@ -46,11 +63,14 @@ function createOrderController() {
     },
     async checkout(req, res) {
       const data = validateCheckout(req.body);
+      const order = await service.checkout(req.user.id, data);
+      if (order.payment_method === "ONLINE")
+        order.payment = await onlinePayment(req, order);
       return res
         .status(201)
         .json({
           success: true,
-          data: await service.checkout(req.user.id, data),
+          data: order,
         });
     },
     async listOrders(req, res) {

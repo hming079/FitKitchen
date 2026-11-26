@@ -7,6 +7,7 @@ FitKitchen is a fitness meal delivery project with a customer storefront and a s
 | Area                       | What works in this branch                                                                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Customer menu/cart/orders  | PostgreSQL menu, customer-owned cart, COD checkout, saved delivery addresses, and customer order history. Sample meals are labeled previews; subscription add-on selections remain estimates. |
+| Online payment             | Backend VNPay Sandbox flow: signed payment URL, IPN that updates payment status, and return redirect. The storefront still checks out with COD until its payment UI ships; see [docs/PAYMENT_VNPAY.md](docs/PAYMENT_VNPAY.md). |
 | Admin Customers            | PostgreSQL-backed search, status filtering, pagination, profiles/addresses, order history, current plans, and audited lock/unlock.                                      |
 | Authorization              | JWT verification, database-backed ADMIN/CUSTOMER roles, account-lock enforcement, and user/address ownership checks.                                                    |
 | Email/password login       | **Not implemented yet.** `/login` is a visual preview. Admin records and JWT fixtures do not replace a real login flow.                                                 |
@@ -71,6 +72,13 @@ Edit `backend/.env` before starting the backend:
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `fitkitchen` / `fitkitchen-api`; the future login issuer must use the same values                  |
 | `CORS_ORIGINS`                | `http://localhost:5173,http://127.0.0.1:5173`                                                      |
 | `ADMIN_DEMO_PASSWORD`         | Optional local seed password, at least 12 characters                                               |
+| `VNP_TMN_CODE`                | VNPay Sandbox terminal code (vnp_TmnCode) from the sandbox merchant registration                   |
+| `VNP_HASH_SECRET`             | VNPay Sandbox hash secret for HMAC-SHA512 signing; never commit it or put it in the frontend       |
+| `VNP_URL`                     | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`                                               |
+| `VNP_RETURN_URL`              | `http://localhost:3000/api/payments/vnpay/return` (browser return; display only)                   |
+| `PAYMENT_RESULT_URL`          | `http://localhost:5173/payment/result` (frontend page the return endpoint redirects to)            |
+
+The five VNPay settings are optional for local development. Without them, online payment endpoints answer `503 PAYMENT_NOT_CONFIGURED` and COD checkout keeps working. See [docs/PAYMENT_VNPAY.md](docs/PAYMENT_VNPAY.md).
 
 Configuration precedence is **process environment → `backend/.env` → repository-root `.env` for missing keys**. A key present but empty in `backend/.env` also takes precedence over the root file. Avoid conflicting duplicate settings and restart the backend after changing configuration. Environment files are gitignored.
 

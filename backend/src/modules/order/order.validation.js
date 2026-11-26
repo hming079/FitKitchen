@@ -87,12 +87,13 @@ function validateCheckout(body) {
     !slots.has(delivery_time_slot)
   )
     invalid("delivery_time_slot is not supported");
-  if (body.payment_method !== "COD") invalid("payment_method must be COD");
+  if (body.payment_method !== "COD" && body.payment_method !== "ONLINE")
+    invalid("payment_method must be COD or ONLINE");
   return {
     address_id,
     delivery_date: body.delivery_date,
     delivery_time_slot: delivery_time_slot ?? null,
-    payment_method: "COD",
+    payment_method: body.payment_method,
   };
 }
 
