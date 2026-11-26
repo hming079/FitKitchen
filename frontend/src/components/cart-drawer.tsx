@@ -4,6 +4,7 @@ import { ArrowUpRight, LoaderCircle, Minus, Plus, ShoppingBag, Trash2 } from "lu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ACCESS_TOKEN_KEY, api, sessionSchema } from "@/lib/admin-api";
-import { orderApi, type Address, type Order } from "@/lib/order-api";
+import {
+  openVnpayPage,
+  orderApi,
+  type Address,
+  type CheckoutOrder,
+  type PaymentMethod,
+} from "@/lib/order-api";
 import { useCartStore } from "@/stores/cart-store";
 
 const money = new Intl.NumberFormat("vi-VN", {
@@ -45,7 +52,10 @@ export function CartDrawer() {
   const [addressDetail, setAddressDetail] = useState("");
   const [addingAddress, setAddingAddress] = useState(false);
   const [message, setMessage] = useState("");
-  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+  const [placedOrder, setPlacedOrder] = useState<CheckoutOrder | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [paymentError, setPaymentError] = useState("");
+  const [redirecting, setRedirecting] = useState(false);
   const queryClient = useQueryClient();
   const { items, itemCount, subtotal, isLoading, error, loadCart, updateQuantity, removeItem } =
     useCartStore();
@@ -84,18 +94,46 @@ export function CartDrawer() {
     onError: (failure) =>
       setMessage(failure instanceof Error ? failure.message : "Could not save the address."),
   });
+  // Leaves the storefront only for the VNPay Sandbox origin.
+  function openVnpay(redirectUrl: string | null | undefined) {
+    const opened = openVnpayPage(redirectUrl);
+    setRedirecting(opened);
+    return opened;
+  }
   const checkout = useMutation({
     mutationFn: () =>
-      orderApi.checkout({ address_id: selectedAddressId, delivery_date: deliveryDate }),
+      orderApi.checkout({
+        address_id: selectedAddressId,
+        delivery_date: deliveryDate,
+        payment_method: paymentMethod,
+      }),
     onSuccess: async (response) => {
       setPlacedOrder(response.data);
       setCheckoutOpen(false);
       setMessage("");
+      setPaymentError("");
       await loadCart();
       await queryClient.invalidateQueries({ queryKey: ["customer", "orders"] });
+      if (
+        response.data.payment_method === "ONLINE" &&
+        !openVnpay(response.data.payment?.redirect_url)
+      )
+        setPaymentError("The VNPay payment page could not be opened.");
     },
     onError: (failure) =>
       setMessage(failure instanceof Error ? failure.message : "Could not place your order."),
+  });
+  const retryPayment = useMutation({
+    mutationFn: (orderId: string) => orderApi.createVnpayPayment(orderId),
+    onMutate: () => setPaymentError(""),
+    onSuccess: (response) => {
+      if (!openVnpay(response.data.redirect_url))
+        setPaymentError("The VNPay payment page could not be opened.");
+    },
+    onError: (failure) =>
+      setPaymentError(
+        failure instanceof Error ? failure.message : "Could not start the VNPay payment.",
+      ),
   });
 
   useEffect(() => {
@@ -127,6 +165,7 @@ export function CartDrawer() {
         if (!next) {
           setCheckoutOpen(false);
           setPlacedOrder(null);
+          setPaymentError("");
         }
       }}
     >
@@ -159,10 +198,42 @@ export function CartDrawer() {
           {placedOrder ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
               <p className="font-display text-2xl font-semibold">Order placed</p>
-              <p className="text-sm text-muted-foreground">
-                Order #{placedOrder.id} is pending confirmation. Payment is cash on delivery.
-              </p>
-              <Button variant="outline" className="min-h-11" onClick={() => setPlacedOrder(null)}>
+              {placedOrder.payment_method !== "ONLINE" ? (
+                <p className="text-sm text-muted-foreground">
+                  Order #{placedOrder.id} is pending confirmation. Payment is cash on delivery.
+                </p>
+              ) : redirecting ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Order #{placedOrder.id} was created. Opening VNPay to complete payment…
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Order #{placedOrder.id} was created and is waiting for VNPay payment.
+                  </p>
+                  {paymentError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {paymentError} You can try again now or pay later from Your orders.
+                    </p>
+                  )}
+                  <Button
+                    className="min-h-11"
+                    disabled={retryPayment.isPending}
+                    onClick={() => retryPayment.mutate(placedOrder.id)}
+                  >
+                    {retryPayment.isPending ? "Opening VNPay…" : "Try payment again"}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                className="min-h-11"
+                disabled={redirecting || retryPayment.isPending}
+                onClick={() => {
+                  setPlacedOrder(null);
+                  setPaymentError("");
+                }}
+              >
                 Continue shopping
               </Button>
             </div>
@@ -383,8 +454,36 @@ export function CartDrawer() {
                       onChange={(event) => setDeliveryDate(event.target.value)}
                     />
                   </div>
+                  <fieldset className="space-y-1.5">
+                    <legend className="text-sm font-medium">Payment method</legend>
+                    <RadioGroup
+                      value={paymentMethod}
+                      onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                      className="grid grid-cols-2 gap-2"
+                      disabled={checkout.isPending}
+                    >
+                      {(
+                        [
+                          ["COD", "Cash on delivery"],
+                          ["ONLINE", "VNPay"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <Label
+                          key={value}
+                          htmlFor={`cart-payment-${value}`}
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-input px-3 font-normal has-[[data-state=checked]]:border-primary"
+                        >
+                          <RadioGroupItem id={`cart-payment-${value}`} value={value} />
+                          {label}
+                        </Label>
+                      ))}
+                    </RadioGroup>
+                  </fieldset>
                   <p className="text-xs text-muted-foreground">
-                    Payment: Cash on delivery · Shipping is currently free.
+                    {paymentMethod === "ONLINE"
+                      ? "You will continue to VNPay to pay after placing the order. "
+                      : "Pay the courier when your meals arrive. "}
+                    Shipping is currently free.
                   </p>
                   {message && (
                     <p role="alert" className="text-sm text-destructive">
@@ -415,7 +514,9 @@ export function CartDrawer() {
                     >
                       {checkout.isPending
                         ? "Placing order…"
-                        : `Place order · ${money.format(subtotal)}`}
+                        : paymentMethod === "ONLINE"
+                          ? `Pay with VNPay · ${money.format(subtotal)}`
+                          : `Place order · ${money.format(subtotal)}`}
                     </Button>
                   </div>
                 </form>
@@ -447,7 +548,7 @@ export function CartDrawer() {
                   </p>
                 )}
                 <p className="text-center text-xs text-muted-foreground">
-                  Total {money.format(subtotal)} · Cash on delivery
+                  Total {money.format(subtotal)} · Cash on delivery or VNPay
                 </p>
               </>
             )}

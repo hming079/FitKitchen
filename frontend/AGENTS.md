@@ -32,7 +32,7 @@ use the editor.
 ## Project architecture
 
 - Read the FitKitchen menu (`/api/meals`) through a public browser-side module. Customer cart, checkout, and order history use authenticated `/api/cart` and `/api/orders` endpoints backed by PostgreSQL; prices and order snapshots are calculated by the backend.
-- Require a signed-in CUSTOMER session for cart mutations and checkout. Use saved customer addresses and the supported cash-on-delivery payment method; do not treat Shopify preview products or client-side estimates as purchasable items.
+- Require a signed-in CUSTOMER session for cart mutations and checkout. Use saved customer addresses and the supported payment methods: cash on delivery or VNPay Sandbox (`ONLINE`). Redirect only to the VNPay origin checked in `src/lib/order-api.ts`, and read payment results from `/api/payments/orders/:orderId` rather than VNPay's return query. Do not treat Shopify preview products or client-side estimates as purchasable items.
 - Keep subscription selection and meal add-on estimates as clearly labeled previews until their real purchase products are configured. Keep operations management on a separate `/admin` route and do not use Admin demo records as customer catalog data.
 
 ## UI design and review
