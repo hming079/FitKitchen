@@ -13,7 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MenuRouteImport } from './routes/menu'
 import { Route as NutritionRouteImport } from './routes/nutrition'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as MealIdRouteImport } from './routes/meal.$id'
 import { Route as ProductHandleRouteImport } from './routes/product.$handle'
 
@@ -37,9 +39,19 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MenuRoute = MenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NutritionRoute = NutritionRouteImport.update({
   id: '/nutrition',
   path: '/nutrition',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MealIdRoute = MealIdRouteImport.update({
@@ -58,7 +70,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
+  '/plans': typeof PlansRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
 }
@@ -67,7 +81,9 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
+  '/plans': typeof PlansRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
 }
@@ -77,7 +93,9 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
+  '/plans': typeof PlansRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
 }
@@ -88,7 +106,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/login'
+    | '/menu'
     | '/nutrition'
+    | '/plans'
     | '/meal/$id'
     | '/product/$handle'
   fileRoutesByTo: FileRoutesByTo
@@ -97,7 +117,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/login'
+    | '/menu'
     | '/nutrition'
+    | '/plans'
     | '/meal/$id'
     | '/product/$handle'
   id:
@@ -106,7 +128,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/login'
+    | '/menu'
     | '/nutrition'
+    | '/plans'
     | '/meal/$id'
     | '/product/$handle'
   fileRoutesById: FileRoutesById
@@ -116,7 +140,9 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  MenuRoute: typeof MenuRoute
   NutritionRoute: typeof NutritionRoute
+  PlansRoute: typeof PlansRoute
   MealIdRoute: typeof MealIdRoute
   ProductHandleRoute: typeof ProductHandleRoute
 }
@@ -151,11 +177,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/menu': {
+      id: '/menu'
+      path: '/menu'
+      fullPath: '/menu'
+      preLoaderRoute: typeof MenuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/nutrition': {
       id: '/nutrition'
       path: '/nutrition'
       fullPath: '/nutrition'
       preLoaderRoute: typeof NutritionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/meal/$id': {
@@ -180,7 +220,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  MenuRoute: MenuRoute,
   NutritionRoute: NutritionRoute,
+  PlansRoute: PlansRoute,
   MealIdRoute: MealIdRoute,
   ProductHandleRoute: ProductHandleRoute,
 }
