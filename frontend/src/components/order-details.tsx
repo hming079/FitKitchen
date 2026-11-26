@@ -111,10 +111,26 @@ export function OrderDetails({ order }: { order: Order }) {
           <p className="mt-2 text-sm text-muted-foreground">No meal details are available.</p>
         )}
       </section>
-      <div className="flex justify-between text-sm font-semibold">
-        <span>Total</span>
-        <span className="tabular-nums">{money.format(order.total_amount)}</span>
-      </div>
+      <dl className="space-y-2 border-t border-border pt-3 text-sm">
+        {order.subtotal_amount !== undefined && (
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Subtotal</dt>
+            <dd className="tabular-nums">{money.format(order.subtotal_amount)}</dd>
+          </div>
+        )}
+        {order.discount_amount !== undefined && order.discount_amount > 0 && (
+          <div className="flex justify-between gap-3 text-success">
+            <dt>
+              Discount{order.promotion_code ? ` (${order.promotion_code})` : ""}
+            </dt>
+            <dd className="tabular-nums">−{money.format(order.discount_amount)}</dd>
+          </div>
+        )}
+        <div className="flex justify-between gap-3 font-semibold">
+          <dt>Total</dt>
+          <dd className="tabular-nums">{money.format(order.total_amount)}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

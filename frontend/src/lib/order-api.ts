@@ -73,6 +73,9 @@ export const orderSchema = z.object({
   created_at: z.string().nullable(),
   delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   total_amount: amount,
+  subtotal_amount: amount.optional(),
+  discount_amount: amount.optional(),
+  promotion_code: z.string().nullable().optional(),
   shipping_fee: amount,
   status: z.string(),
   payment_method: z.string(),
@@ -208,6 +211,7 @@ export const orderApi = {
     delivery_date: string;
     delivery_time_slot?: string;
     payment_method?: PaymentMethod;
+    promotion_code?: string;
   }) =>
     requestApi("/orders/checkout", successCheckout, {
       method: "POST",

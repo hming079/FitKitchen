@@ -32,9 +32,11 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
     const sql = file => fs.readFile(path.join(__dirname, '../../db', file), 'utf8');
     const bootstrap = await sql('init/01_schema.sql');
     const migration = await sql('migrations/001_admin_customers.sql');
+    const promotionsMigration = await sql('migrations/007_promotions.sql');
     // Reconstruct the pre-change schema to prove upgrades retain old accounts.
     await pool.query(bootstrap.replace("role VARCHAR(50) NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('ADMIN', 'CUSTOMER')),\n    is_locked BOOLEAN NOT NULL DEFAULT FALSE,", "role VARCHAR(50) DEFAULT 'CUSTOMER',"));
     await pool.query(await sql('init/02_mockdata.sql'));
+    await pool.query(promotionsMigration);
     assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'users' AND column_name = 'is_locked'", [schema])).rows[0].n, 0);
     const previous = (await pool.query('SELECT COUNT(*)::int AS n FROM users')).rows[0].n;
     await t.test('existing-volume migration is repeatable and preserves records', async () => {
@@ -52,6 +54,7 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
             await client.query(await sql('init/02_mockdata.sql'));
             await client.query(await sql('init/03_admin_customers.sql'));
             await client.query(migration);
+            await client.query(promotionsMigration);
             assert.equal((await client.query("SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'admin_account_audit'", [`${schema}_fresh`])).rows[0].n, 8);
         } finally {
             await client.query('SET search_path TO public');
@@ -277,6 +280,12 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
         assert.equal((await update('PENDING', 'PREPARING')).status, 200);
         assert.equal((await update('PENDING', 'CANCELLED')).status, 409);
         assert.equal((await request(`/admin/orders/${order.id}`)).body.data.status, 'PREPARING');
+        assert.equal((await update('PREPARING', 'DELIVERING')).body.data.status, 'DELIVERING');
+        const completed = await update('DELIVERING', 'COMPLETED');
+        assert.equal(completed.status, 200);
+        assert.equal(completed.body.data.status, 'COMPLETED');
+        assert.equal(completed.body.data.payment_status, 'PAID');
+        assert.equal((await request(`/admin/orders/${order.id}`)).body.data.payment_status, 'PAID');
     });
     await t.test('Admin overview counts paid orders in the kitchen calendar and excludes cancelled orders', async () => {
         const url = '/admin/overview?range=last_week';
@@ -299,5 +308,91 @@ test('Admin customer management against real HTTP, signed JWTs and PostgreSQL', 
         assert.equal(after.daily_revenue, before.daily_revenue);
         assert.equal(typeof order.id, 'string');
         assert.ok(after.recent_orders.every(({ id, total_amount }) => typeof id === 'string' && typeof total_amount === 'string'));
+    });
+    await t.test('overview supports monthly grouping, custom ranges and top N meals with revenue', async () => {
+        const { rows: meals } = await pool.query('SELECT id, name FROM meals ORDER BY id LIMIT 2');
+        const { rows: [order] } = await pool.query(`INSERT INTO customer_orders
+            (total_amount, status, payment_method, payment_status, delivery_date, created_at)
+            VALUES (350000, 'COMPLETED', 'COD', 'PAID', '2026-01-15',
+                ('2026-01-15 12:00:00'::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE current_setting('TimeZone'))
+            RETURNING id`);
+        await pool.query(`INSERT INTO order_items
+            (order_id, meal_id, quantity, unit_price, calories_snapshot, protein_snapshot, carbs_snapshot, fat_snapshot)
+            VALUES ($1, $2, 3, 70000, 500, 40, 50, 10),
+                   ($1, $3, 2, 70000, 450, 35, 45, 12)`, [order.id, meals[0].id, meals[1].id]);
+        const res = await request('/admin/overview?start_date=2026-01-01&end_date=2026-02-28&group_by=month&top_limit=2');
+        assert.equal(res.status, 200);
+        assert.equal(res.body.data.group_by, 'month');
+        assert.equal(res.body.data.revenue_series.length, 2);
+        assert.equal(res.body.data.revenue_series[0].label, '2026-01');
+        assert.equal(Number(res.body.data.revenue_series[0].revenue), 350000);
+        assert.equal(res.body.data.top_meals.length, 2);
+        assert.equal(res.body.data.top_meals[0].quantity, 3);
+        assert.equal(res.body.data.top_meals[0].revenue, '210000.00');
+
+        // Unpaid orders must not inflate the ranking, which is based on paid revenue.
+        const { rows: [unpaid] } = await pool.query(`INSERT INTO customer_orders
+            (total_amount, status, payment_method, payment_status, delivery_date, created_at)
+            VALUES (700000, 'PENDING', 'COD', 'PENDING', '2026-01-16',
+                ('2026-01-16 12:00:00'::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE current_setting('TimeZone'))
+            RETURNING id`);
+        await pool.query(`INSERT INTO order_items
+            (order_id, meal_id, quantity, unit_price, calories_snapshot, protein_snapshot, carbs_snapshot, fat_snapshot)
+            VALUES ($1, $2, 10, 70000, 450, 35, 45, 12)`, [unpaid.id, meals[1].id]);
+        const again = await request('/admin/overview?start_date=2026-01-01&end_date=2026-02-28&group_by=month&top_limit=2');
+        assert.equal(again.body.data.top_meals[0].quantity, 3);
+        assert.equal(again.body.data.top_meals[1].quantity, 2);
+    });
+    await t.test('monthly overview reports full daily series and paid customer renewals within seven days', async () => {
+        const before = (await request('/admin/overview?range=last_month')).body.data;
+        const monthDays = (await pool.query(
+            `SELECT (date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::date
+                     - (date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)
+                        - INTERVAL '1 month')::date)::int AS days`
+        )).rows[0].days;
+        assert.equal(before.revenue_series.length, monthDays);
+
+        const { rows: [plan] } = await pool.query('SELECT id FROM subscription_plans ORDER BY id LIMIT 1');
+        const { rows: customers } = await pool.query(
+            `INSERT INTO users (email, password_hash, full_name, role)
+             VALUES ($1, 'unused', 'Renewed fixture', 'CUSTOMER'),
+                    ($2, 'unused', 'Not renewed fixture', 'CUSTOMER')
+             RETURNING id, full_name`,
+            [`renewed-${schema}@example.test`, `not-renewed-${schema}@example.test`]
+        );
+        const renewedCustomer = customers.find(customer => customer.full_name === 'Renewed fixture');
+        const notRenewedCustomer = customers.find(customer => customer.full_name === 'Not renewed fixture');
+        await pool.query(
+            `WITH calendar AS (
+                SELECT (date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)
+                        - INTERVAL '1 month' + INTERVAL '14 days')::date AS end_date
+             )
+             INSERT INTO user_subscriptions
+                (user_id, plan_id, start_date, end_date, status, payment_method, payment_status, total_amount)
+             SELECT customer.id, $3, calendar.end_date - 7, calendar.end_date, 'ACTIVE', 'COD', 'PAID', 1000
+             FROM calendar CROSS JOIN (VALUES ($1::bigint), ($2::bigint)) AS customer(id)`,
+            [renewedCustomer.id, notRenewedCustomer.id, plan.id]
+        );
+        await pool.query(
+            `WITH calendar AS (
+                SELECT (date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)
+                        - INTERVAL '1 month' + INTERVAL '14 days')::date AS end_date
+             )
+             INSERT INTO user_subscriptions
+                (user_id, plan_id, start_date, end_date, status, payment_method, payment_status, total_amount)
+             SELECT $1, $2, calendar.end_date + 2, calendar.end_date + 20,
+                    'ACTIVE', 'COD', 'PAID', 1000
+             FROM calendar`,
+            [renewedCustomer.id, plan.id]
+        );
+
+        const after = (await request('/admin/overview?range=last_month')).body.data;
+        assert.equal(after.renewal_eligible_customers, before.renewal_eligible_customers + 2);
+        assert.equal(after.renewed_customers, before.renewed_customers + 1);
+        assert.equal(
+            after.renewal_rate,
+            (Math.round((after.renewed_customers / after.renewal_eligible_customers) * 1000) / 10).toFixed(1)
+        );
+        assert.equal((await request('/admin/overview?range=this_month')).status, 200);
     });
 });

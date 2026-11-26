@@ -155,11 +155,25 @@ export const adminOrderDetailsSchema = z.object({
 });
 export const adminOrderStatusSchema = z.object({
   success: z.literal(true),
-  data: z.object({ id, status: orderStatusSchema }),
+  data: z.object({
+    id,
+    status: orderStatusSchema,
+    payment_status: nullableText.optional(),
+  }),
+});
+const topMealSchema = z.object({
+  meal_id: id.optional(),
+  name: z.string(),
+  quantity: z.number(),
+  order_count: z.number(),
+  revenue: z.string().optional(),
 });
 export const adminOverviewSchema = z.object({
   success: z.literal(true),
   data: z.object({
+    group_by: z.enum(["day", "month"]).optional(),
+    period_start: calendarDate.optional(),
+    period_end: calendarDate.optional(),
     daily_revenue: z.string(),
     previous_daily_revenue: z.string(),
     period_revenue: z.string(),
@@ -167,10 +181,19 @@ export const adminOverviewSchema = z.object({
     pending_orders: z.number(),
     deliveries_today: z.number(),
     active_subscriptions: z.number(),
-    top_meal: z
-      .object({ name: z.string(), quantity: z.number(), order_count: z.number() })
-      .nullable(),
-    revenue_series: z.array(z.object({ date: calendarDate, revenue: z.string() })),
+    renewal_eligible_customers: z.number().int().nonnegative(),
+    renewed_customers: z.number().int().nonnegative(),
+    renewal_rate: nullableText,
+    top_meal: topMealSchema.nullable(),
+    top_meals: z.array(topMealSchema).optional(),
+    revenue_series: z.array(
+      z.object({
+        date: calendarDate,
+        label: z.string().optional(),
+        revenue: z.string(),
+        orders: z.number().optional(),
+      }),
+    ),
     recent_orders: z.array(adminOrderSchema),
   }),
 });

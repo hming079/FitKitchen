@@ -22,7 +22,8 @@ import {
   Users,
   UtensilsCrossed,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import { PromotionManager } from "@/components/admin/promotion-manager";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -170,11 +171,7 @@ function AdminPage({ user }: { user: Session }) {
           {view === "Overview" && <AdminOverview onOrders={() => setView("Orders")} />}
           {view === "Orders" && <AdminOrders />}
           {view === "Meals" && <CatalogManager />}
-          {view === "Promotions" && (
-            <Panel title="Discount codes" sub="Demo discount codes.">
-              <Promotions />
-            </Panel>
-          )}
+          {view === "Promotions" && <PromotionManager />}
           {view === "Customers" && <CustomerDirectory />}
           {view === "Subscriptions" && <SubscriptionManager />}
           <div className="mt-6 flex items-center justify-between text-[14px] text-muted-foreground">
@@ -206,107 +203,3 @@ const descriptions: Record<View, string> = {
   Customers: "Find customers, review their history and manage account access.",
   Subscriptions: "Configure subscription plans and gifts, and manage active subscribers.",
 };
-
-function Panel({
-  title,
-  sub,
-  right,
-  children,
-}: {
-  title: string;
-  sub: string;
-  right?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-sm border border-[#e9ede7] bg-white shadow-[0_2px_9px_rgba(35,52,37,.025)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0eb] px-4 py-4 sm:px-5">
-        <div>
-          <h2 className="text-[13px] font-semibold">{title}</h2>
-          <p className="mt-1 text-[14px] text-[#97a097]">{sub}</p>
-        </div>
-        {right}
-      </div>
-      {children}
-    </section>
-  );
-}
-function DataTable({
-  headers,
-  children,
-  min = "720px",
-}: {
-  headers: string[];
-  children: ReactNode;
-  min?: string;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left" style={{ minWidth: min }}>
-        <thead>
-          <tr className="border-b border-[#edf0eb] bg-[#fafbf9]">
-            {headers.map((h) => (
-              <th
-                key={h}
-                className="px-4 py-3 text-[13px] font-semibold uppercase tracking-[.1em] text-[#9aa49b] sm:px-5"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#f0f2ee]">{children}</tbody>
-      </table>
-    </div>
-  );
-}
-function Promotions() {
-  const [rows, setRows] = useState([
-    { code: "WELCOME15", type: "Percentage", value: "15%", min: "$25.00", active: true, used: 128 },
-    { code: "FUEL10", type: "Percentage", value: "10%", min: "$20.00", active: true, used: 84 },
-    {
-      code: "FITNESS5",
-      type: "Fixed amount",
-      value: "$5.00",
-      min: "$35.00",
-      active: false,
-      used: 42,
-    },
-    { code: "COMBO20", type: "Percentage", value: "20%", min: "$60.00", active: true, used: 26 },
-  ]);
-  return (
-    <DataTable
-      headers={["Code", "Discount type", "Value", "Min. order amount", "Redemptions", "Active"]}
-      min="760px"
-    >
-      {rows.map((r) => (
-        <tr key={r.code} className="hover:bg-[#fbfcfa]">
-          <td className="px-4 py-4 sm:px-5">
-            <span className="rounded-md border border-dashed border-[#dce5d5] bg-[#f8faf6] px-2 py-1 font-mono text-[14px] font-bold tracking-wide text-[#547247]">
-              {r.code}
-            </span>
-          </td>
-          <td className="px-4 py-4 text-[14px] text-[#778379]">{r.type}</td>
-          <td className="px-4 py-4 text-[13px] font-semibold">{r.value}</td>
-          <td className="px-4 py-4 text-[14px] text-[#778379]">{r.min}</td>
-          <td className="px-4 py-4 text-[14px] text-[#778379]">{r.used} uses</td>
-          <td className="px-4 py-4">
-            <button
-              aria-label={`${r.active ? "Deactivate" : "Activate"} ${r.code}`}
-              onClick={() =>
-                setRows((all) =>
-                  all.map((x) => (x.code === r.code ? { ...x, active: !x.active } : x)),
-                )
-              }
-              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${r.active ? "bg-[#648b4e]" : "bg-[#d7ddd5]"}`}
-            >
-              <span
-                className={`size-4 rounded-full bg-white shadow-sm transition-transform ${r.active ? "translate-x-4" : "translate-x-0"}`}
-              />
-            </button>
-          </td>
-        </tr>
-      ))}
-    </DataTable>
-  );
-}

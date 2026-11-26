@@ -11,6 +11,7 @@ const subscriptionModule = require("./modules/subscription");
 const orderModule = require("./modules/order");
 const paymentModule = require("./modules/payment");
 const nutritionModule = require("./modules/nutrition");
+const promotionModule = require("./modules/promotion");
 const { authenticate } = require("./middleware/auth");
 const { securityHeaders, createRateLimiter } = require("./middleware/security");
 
@@ -30,6 +31,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use(mealModule.basePath, mealModule.router);
+app.use(promotionModule.basePath, promotionModule.customerRouter);
 app.use(categoryModule.basePath, categoryModule.router);
 app.use(productModule.basePath, productModule.router);
 app.use(userModule.basePath, userModule.router);

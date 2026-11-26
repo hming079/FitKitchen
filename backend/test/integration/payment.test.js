@@ -50,7 +50,8 @@ test('VNPay online payment against PostgreSQL', async t => {
         'migrations/003_auth_sessions.sql',
         'migrations/004_subscriptions.sql',
         'migrations/005_nutrition_profiles.sql',
-        'migrations/006_payment_transactions.sql'
+        'migrations/006_payment_transactions.sql',
+        'migrations/007_promotions.sql'
     ]) {
         await pool.query(await sql(file));
     }
@@ -58,6 +59,8 @@ test('VNPay online payment against PostgreSQL', async t => {
     await t.test('payment schema files are repeatable', async () => {
         await pool.query(await sql('migrations/006_payment_transactions.sql'));
         await pool.query(await sql('init/06_payment_transactions.sql'));
+        await pool.query(await sql('migrations/007_promotions.sql'));
+        await pool.query(await sql('init/07_promotions.sql'));
     });
 
     const { rows: [admin, customer, other] } = await pool.query(
@@ -152,6 +155,81 @@ test('VNPay online payment against PostgreSQL', async t => {
     const originalWarn = console.warn;
     console.warn = message => warnings.push(message);
     t.after(() => { console.warn = originalWarn; });
+
+    await t.test('promotion validation, Admin management and checkout snapshots use server totals', async () => {
+        const created = await request('/admin/promotions', {
+            method: 'POST',
+            token: adminToken,
+            body: {
+                code: 'save10',
+                description: 'Ten percent off',
+                discount_type: 'PERCENTAGE',
+                discount_value: 10,
+                min_order_amount: 0,
+                max_discount_amount: 10000,
+                start_date: null,
+                end_date: null,
+                usage_limit: 10,
+                per_user_limit: 1,
+                is_active: true
+            }
+        });
+        assert.equal(created.status, 201);
+        assert.equal(created.body.data.code, 'SAVE10');
+        assert.equal((await request('/admin/promotions')).status, 401);
+        assert.equal((await request('/admin/promotions', { token: customerToken })).status, 403);
+        assert.equal((await request('/admin/promotions', adminToken)).body.data[0].redemption_count, 0);
+
+        await request('/cart/items', {
+            method: 'POST', token: customerToken,
+            body: { meal_id: String(meal.id), quantity: 2 }
+        });
+        const cart = (await request('/cart', { token: customerToken })).body.data;
+        const preview = await request('/promotions/validate', {
+            method: 'POST', token: customerToken, body: { code: 'save10' }
+        });
+        assert.equal(preview.status, 200);
+        assert.equal(preview.body.data.code, 'SAVE10');
+        assert.equal(preview.body.data.subtotal, Number(cart.subtotal));
+        assert.equal(preview.body.data.discount_amount, Math.min(Number(cart.subtotal) * 0.1, 10000));
+        assert.equal((await request('/promotions/validate', { method: 'POST', body: { code: 'SAVE10' } })).status, 401);
+        assert.equal((await request('/promotions/validate', {
+            method: 'POST', token: customerToken, body: { code: 'MISSING' }
+        })).body.code, 'PROMOTION_UNAVAILABLE');
+
+        const checkout = await request('/orders/checkout', {
+            method: 'POST',
+            token: customerToken,
+            body: {
+                address_id: String(address.id),
+                delivery_date: today,
+                payment_method: 'ONLINE',
+                promotion_code: 'save10'
+            }
+        });
+        assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
+        const order = checkout.body.data;
+        assert.equal(order.promotion_code, 'SAVE10');
+        assert.equal(Number(order.subtotal_amount), preview.body.data.subtotal);
+        assert.equal(Number(order.discount_amount), preview.body.data.discount_amount);
+        assert.equal(Number(order.total_amount), preview.body.data.total_amount);
+        const paymentUrl = new URL(order.payment.redirect_url);
+        assert.equal(paymentUrl.searchParams.get('vnp_Amount'), String(Math.round(order.total_amount * 100)));
+
+        await request('/cart/items', {
+            method: 'POST', token: customerToken,
+            body: { meal_id: String(meal.id), quantity: 1 }
+        });
+        const exhausted = await request('/promotions/validate', {
+            method: 'POST', token: customerToken, body: { code: 'SAVE10' }
+        });
+        assert.equal(exhausted.body.code, 'PROMOTION_LIMIT_REACHED');
+        const disabled = await request(`/admin/promotions/${created.body.data.id}`, {
+            method: 'PATCH', token: adminToken, body: { is_active: false }
+        });
+        assert.equal(disabled.status, 200);
+        assert.equal(disabled.body.data.is_active, false);
+    });
 
     let order;
     let firstUrl;

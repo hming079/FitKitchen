@@ -21,6 +21,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ACCESS_TOKEN_KEY, api, sessionSchema } from "@/lib/admin-api";
+import { promotionApi } from "@/lib/promotion-api";
 import {
   openVnpayPage,
   orderApi,
@@ -54,6 +55,8 @@ export function CartDrawer() {
   const [message, setMessage] = useState("");
   const [placedOrder, setPlacedOrder] = useState<CheckoutOrder | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [promotionCode, setPromotionCode] = useState("");
+  const [appliedPromotionCode, setAppliedPromotionCode] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
   const queryClient = useQueryClient();
@@ -74,6 +77,18 @@ export function CartDrawer() {
     enabled: Boolean(user),
     retry: false,
   });
+  const promotion = useQuery({
+    queryKey: ["customer", "promotion-preview", appliedPromotionCode, subtotal],
+    queryFn: () => promotionApi.validateForCart(appliedPromotionCode!),
+    enabled: Boolean(appliedPromotionCode) && checkoutOpen,
+    retry: false,
+  });
+  const promotionOffer = promotion.data?.data;
+  const promotionMatchesCart =
+    promotionOffer !== undefined &&
+    Math.round(promotionOffer.subtotal * 100) === Math.round(subtotal * 100);
+  const finalTotal =
+    promotionOffer && promotionMatchesCart ? promotionOffer.total_amount : subtotal;
   const saveAddress = useMutation({
     mutationFn: () =>
       orderApi.saveAddress(user!.id, {
@@ -106,12 +121,17 @@ export function CartDrawer() {
         address_id: selectedAddressId,
         delivery_date: deliveryDate,
         payment_method: paymentMethod,
+        ...(appliedPromotionCode && promotionMatchesCart
+          ? { promotion_code: appliedPromotionCode }
+          : {}),
       }),
     onSuccess: async (response) => {
       setPlacedOrder(response.data);
       setCheckoutOpen(false);
       setMessage("");
       setPaymentError("");
+      setPromotionCode("");
+      setAppliedPromotionCode(null);
       await loadCart();
       await queryClient.invalidateQueries({ queryKey: ["customer", "orders"] });
       if (
@@ -454,6 +474,78 @@ export function CartDrawer() {
                       onChange={(event) => setDeliveryDate(event.target.value)}
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cart-promotion-code">Discount code</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="cart-promotion-code"
+                        className="h-11 min-w-0 uppercase"
+                        maxLength={50}
+                        autoComplete="off"
+                        value={promotionCode}
+                        disabled={Boolean(appliedPromotionCode)}
+                        onChange={(event) => setPromotionCode(event.target.value)}
+                      />
+                      {appliedPromotionCode ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="min-h-11 shrink-0"
+                          disabled={promotion.isFetching}
+                          onClick={() => {
+                            setAppliedPromotionCode(null);
+                            setPromotionCode("");
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="min-h-11 shrink-0"
+                          disabled={!promotionCode.trim()}
+                          onClick={() => setAppliedPromotionCode(promotionCode.trim().toUpperCase())}
+                        >
+                          Apply
+                        </Button>
+                      )}
+                    </div>
+                    {promotion.isPending && appliedPromotionCode && (
+                      <p role="status" className="text-sm text-muted-foreground">
+                        Checking discount code…
+                      </p>
+                    )}
+                    {promotion.isError && appliedPromotionCode && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {promotion.error.message}
+                      </p>
+                    )}
+                    {promotionOffer && promotionMatchesCart && (
+                      <p role="status" className="text-sm text-success">
+                        {promotionOffer.code} applied · Save{" "}
+                        {money.format(promotionOffer.discount_amount)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1 border-y border-border py-3 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="tabular-nums">{money.format(subtotal)}</span>
+                    </div>
+                    {promotionOffer && promotionMatchesCart && (
+                      <div className="mt-1 flex justify-between gap-3 text-success">
+                        <span>Discount</span>
+                        <span className="tabular-nums">
+                          −{money.format(promotionOffer.discount_amount)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="mt-1 flex justify-between gap-3 font-semibold">
+                      <span>Total</span>
+                      <span className="tabular-nums">{money.format(finalTotal)}</span>
+                    </div>
+                  </div>
                   <fieldset className="space-y-1.5">
                     <legend className="text-sm font-medium">Payment method</legend>
                     <RadioGroup
@@ -509,14 +601,19 @@ export function CartDrawer() {
                         checkout.isPending ||
                         !selectedAddressId ||
                         addingAddress ||
-                        addresses.isError
+                        addresses.isError ||
+                        (Boolean(appliedPromotionCode) &&
+                          (promotion.isPending ||
+                            promotion.isError ||
+                            !promotionOffer ||
+                            !promotionMatchesCart))
                       }
                     >
                       {checkout.isPending
                         ? "Placing order…"
                         : paymentMethod === "ONLINE"
-                          ? `Pay with VNPay · ${money.format(subtotal)}`
-                          : `Place order · ${money.format(subtotal)}`}
+                          ? `Pay with VNPay · ${money.format(finalTotal)}`
+                          : `Place order · ${money.format(finalTotal)}`}
                     </Button>
                   </div>
                 </form>

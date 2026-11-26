@@ -51,7 +51,15 @@ function placedOrder(redirectUrl: string | null) {
   };
 }
 
-function mockApi({ checkoutUrl, retryUrl }: { checkoutUrl: string | null; retryUrl?: string }) {
+function mockApi({
+  checkoutUrl,
+  retryUrl,
+  promotion,
+}: {
+  checkoutUrl: string | null;
+  retryUrl?: string;
+  promotion?: boolean;
+}) {
   let ordered = false;
   vi.stubGlobal(
     "fetch",
@@ -77,6 +85,19 @@ function mockApi({ checkoutUrl, retryUrl }: { checkoutUrl: string | null; retryU
             },
           ],
         });
+      if (path === "/promotions/validate" && promotion)
+        return Response.json({
+          success: true,
+          data: {
+            promotion_id: "9",
+            code: "SAVE10",
+            discount_type: "PERCENTAGE",
+            discount_value: 10,
+            subtotal: 65000,
+            discount_amount: 6500,
+            total_amount: 58500,
+          },
+        });
       if (path === "/orders/checkout") {
         ordered = true;
         checkoutBodies.push(JSON.parse(String(init?.body)));
@@ -101,7 +122,7 @@ function mockApi({ checkoutUrl, retryUrl }: { checkoutUrl: string | null; retryU
   );
 }
 
-async function checkoutWithVnpay() {
+async function checkoutWithVnpay(code?: string) {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -111,6 +132,11 @@ async function checkoutWithVnpay() {
   );
   fireEvent.click(screen.getByRole("button", { name: /open cart/i }));
   fireEvent.click(await screen.findByRole("button", { name: /checkout/i }));
+  if (code) {
+    fireEvent.change(screen.getByLabelText("Discount code"), { target: { value: code } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findByText(/SAVE10 applied/);
+  }
   fireEvent.click(await screen.findByRole("radio", { name: "VNPay" }));
   const submit = await screen.findByRole("button", { name: /pay with vnpay/i });
   await waitFor(() => expect(submit).toBeEnabled());
@@ -141,6 +167,19 @@ afterEach(() => {
 });
 
 describe("cart checkout with VNPay", () => {
+  it("applies a validated code to the displayed total and checkout request", async () => {
+    mockApi({ checkoutUrl: VNPAY_URL, promotion: true });
+    await checkoutWithVnpay("save10");
+    const payButton = screen.getByRole("button", { name: /pay with vnpay/i });
+    expect(payButton.textContent).toContain("58.500");
+    await waitFor(() => expect(checkoutBodies[0]).toMatchObject({
+      payment_method: "ONLINE",
+      address_id: "3",
+      promotion_code: "SAVE10",
+    }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(VNPAY_URL));
+  });
+
   it("sends ONLINE and opens the VNPay Sandbox page", async () => {
     mockApi({ checkoutUrl: VNPAY_URL });
     await checkoutWithVnpay();

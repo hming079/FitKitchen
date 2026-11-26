@@ -5,11 +5,13 @@ const service = require('./customer.service');
 const operations = require('./operations.service');
 const { positiveId, validatePage } = require('../order/order.validation');
 const { adminRouter: subscriptionAdminRouter } = require('../subscription');
+const { adminRouter: promotionAdminRouter } = require('../promotion');
 
 router.use(authenticate, requireRole('ADMIN'));
 router.use(subscriptionAdminRouter);
+router.use(promotionAdminRouter);
 router.get('/overview', async (req, res) => {
-    res.json({ success: true, data: await operations.overview(req.query.range ?? 'this_week') });
+    res.json({ success: true, data: await operations.overview(req.query) });
 });
 router.get('/orders', async (req, res) => {
     res.json({ success: true, ...await operations.listOrders(req.query.search ?? '', validatePage(req.query)) });
