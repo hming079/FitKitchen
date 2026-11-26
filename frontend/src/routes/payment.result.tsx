@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { OrderDetails } from "@/components/order-details";
 import { StoreHeader } from "@/components/store-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,13 @@ export function PaymentResult({
         : false;
     },
   });
+  // Independent of the payment status: a summary failure never hides the payment state.
+  const summary = useQuery({
+    queryKey: ["customer", "order", orderId],
+    queryFn: ({ signal }) => orderApi.order(orderId!, signal),
+    enabled: Boolean(orderId) && hasToken,
+    retry: false,
+  });
   const awaiting = status.data ? awaitingConfirmation(status.data.data) : false;
   useEffect(() => {
     if (!awaiting || pollExpired || returnedUnpaid) return;
@@ -122,6 +130,35 @@ export function PaymentResult({
     <Button asChild variant="outline" className="min-h-11">
       <Link to="/dashboard">View your orders</Link>
     </Button>
+  );
+  const summarySection = (
+    <section aria-labelledby="payment-order-summary" className="space-y-3 pt-2">
+      <h2 id="payment-order-summary" className="text-base font-semibold">
+        Order summary
+      </h2>
+      {summary.isPending ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Loading order summary…
+        </p>
+      ) : summary.isError ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            The order summary could not be loaded. The payment status above is still current.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-10"
+            disabled={summary.isFetching}
+            onClick={() => void summary.refetch()}
+          >
+            {summary.isFetching ? "Loading…" : "Reload summary"}
+          </Button>
+        </div>
+      ) : (
+        <OrderDetails order={summary.data.data} />
+      )}
+    </section>
   );
   const retryErrorText = retryError ? (
     <p role="alert" className="text-sm text-destructive">
@@ -213,10 +250,12 @@ export function PaymentResult({
         <Alert variant="success" role="status">
           <AlertDescription>
             <p className="font-medium">Payment received</p>
-            VNPay confirmed your payment of {total}. The kitchen will confirm your order next.
+            VNPay confirmed your payment of {total}. Next, the kitchen confirms your order, then it
+            goes out for delivery.
           </AlertDescription>
         </Alert>
         {ordersLink}
+        {summarySection}
       </section>
     );
   }
@@ -247,6 +286,7 @@ export function PaymentResult({
           </Button>
           {ordersLink}
         </div>
+        {summarySection}
       </section>
     );
   }
@@ -280,6 +320,7 @@ export function PaymentResult({
           </>
         )}
         {ordersLink}
+        {summarySection}
       </section>
     );
   }
@@ -299,6 +340,7 @@ export function PaymentResult({
           {payment.can_retry && retryButton(payment.order_id)}
           {ordersLink}
         </div>
+        {summarySection}
       </section>
     );
   }
@@ -312,6 +354,7 @@ export function PaymentResult({
           : "This order is not paid online."}
       </p>
       {ordersLink}
+      {summarySection}
     </section>
   );
 }

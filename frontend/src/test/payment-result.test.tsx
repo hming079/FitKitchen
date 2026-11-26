@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCESS_TOKEN_KEY } from "@/lib/admin-api";
@@ -43,14 +43,42 @@ function status(payment_status: string, extra: Record<string, unknown> = {}) {
   };
 }
 
+const orderDetails = {
+  success: true,
+  data: {
+    id: "6",
+    created_at: "2026-11-25T18:00:00.000Z",
+    delivery_date: "2026-11-27",
+    total_amount: "65000.00",
+    shipping_fee: "0.00",
+    status: "PENDING",
+    payment_method: "ONLINE",
+    payment_status: "PAID",
+    delivery_time_slot: "11:00 - 12:00",
+    items: [
+      {
+        id: "11",
+        meal_id: "1",
+        name: "Grilled chicken with asparagus",
+        quantity: 1,
+        unit_price: "65000.00",
+        options: [],
+      },
+    ],
+  },
+};
+
 let responses: Array<() => Response>;
 let fetchMock: ReturnType<typeof vi.fn>;
+let orderResponse: () => Response;
 const statusCalls = () =>
   fetchMock.mock.calls.filter(([url]) => String(url) === "/api/payments/orders/6").length;
 
 function mockFetch(...queue: Array<() => Response>) {
   responses = queue;
+  orderResponse = () => Response.json(orderDetails);
   fetchMock = vi.fn(async (input: string) => {
+    if (input === "/api/orders/6") return orderResponse();
     if (input === "/api/payments/vnpay")
       return Response.json({
         success: true,
@@ -113,11 +141,39 @@ describe("payment result search", () => {
 });
 
 describe("PaymentResult", () => {
-  it("shows a confirmed payment from the backend", async () => {
+  it("shows a confirmed payment, the next steps and the order summary", async () => {
     mockFetch(() => Response.json(status("PAID")));
     renderResult("6");
-    expect(await screen.findByText("Payment received")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/65\.000/);
+    const confirmation = (await screen.findByText("Payment received")).closest("[role=status]");
+    expect(confirmation).toHaveTextContent(/65\.000/);
+    expect(confirmation).toHaveTextContent(
+      /kitchen confirms your order, then it goes out for delivery/,
+    );
+
+    const summary = await screen.findByRole("region", { name: "Order summary" });
+    expect(
+      await within(summary).findByText(/Grilled chicken with asparagus × 1/),
+    ).toBeInTheDocument();
+    expect(within(summary).getByText("11:00 - 12:00")).toBeInTheDocument();
+    expect(within(summary).getByText("VNPay")).toBeInTheDocument();
+    expect(within(summary).getByText("Paid")).toBeInTheDocument();
+    expect(within(summary).getByText("Total").nextSibling).toHaveTextContent(/65\.000/);
+  });
+
+  it("keeps the payment state visible when the order summary fails to load", async () => {
+    mockFetch(() => Response.json(status("FAILED")));
+    orderResponse = () => {
+      throw new TypeError("Failed to fetch");
+    };
+    renderResult("6");
+    expect(await screen.findByText("Payment was not completed")).toBeInTheDocument();
+    expect(await screen.findByText(/order summary could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try payment again" })).toBeEnabled();
+
+    orderResponse = () => Response.json(orderDetails);
+    fireEvent.click(screen.getByRole("button", { name: "Reload summary" }));
+    expect(await screen.findByText(/Grilled chicken with asparagus × 1/)).toBeInTheDocument();
   });
 
   it("waits for VNPay, polls every 3 seconds and shows the confirmation", async () => {
