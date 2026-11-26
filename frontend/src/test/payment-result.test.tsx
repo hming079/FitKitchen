@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCESS_TOKEN_KEY } from "@/lib/admin-api";
 import { browserNavigation, VNPAY_ORIGIN } from "@/lib/order-api";
-import { PaymentResult, POLL_INTERVAL_MS, POLL_LIMIT_MS, Route } from "@/routes/payment.result";
+import {
+  PaymentResult,
+  POLL_INTERVAL_MS,
+  POLL_LIMIT_MS,
+  Route,
+  type VnpayResultHint,
+} from "@/routes/payment.result";
 
 vi.mock("@tanstack/react-router", async () => {
   const actual =
@@ -62,11 +68,11 @@ function mockFetch(...queue: Array<() => Response>) {
   vi.stubGlobal("fetch", fetchMock);
 }
 
-function renderResult(orderId: string | undefined) {
+function renderResult(orderId: string | undefined, vnpayResult?: VnpayResultHint) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <PaymentResult orderId={orderId} />
+      <PaymentResult orderId={orderId} vnpayResult={vnpayResult} />
     </QueryClientProvider>,
   );
 }
@@ -86,12 +92,22 @@ afterEach(() => {
 });
 
 describe("payment result search", () => {
-  it("keeps only a valid order_id and ignores VNPay's result value", () => {
+  it("keeps a valid order_id and VNPay's result only as a known hint", () => {
     const validate = Route.options.validateSearch as (search: Record<string, unknown>) => unknown;
-    expect(validate({ order_id: 6, result: "success" })).toEqual({ order_id: 6 });
-    expect(validate({ order_id: "6" })).toEqual({ order_id: 6 });
+    expect(validate({ order_id: 6, result: "success" })).toEqual({
+      order_id: 6,
+      result: "success",
+    });
+    expect(validate({ order_id: "6" })).toEqual({ order_id: 6, result: undefined });
+    for (const result of ["failed", "invalid"])
+      expect(validate({ order_id: 6, result })).toEqual({ order_id: 6, result });
+    for (const result of ["paid", "", 1, "SUCCESS"])
+      expect(validate({ order_id: 6, result })).toEqual({ order_id: 6, result: undefined });
     for (const order_id of ["abc", 0, -1, 1.5, "1e3", Number.MAX_SAFE_INTEGER + 2]) {
-      expect(validate({ order_id, result: "success" })).toEqual({ order_id: undefined });
+      expect(validate({ order_id, result: "success" })).toEqual({
+        order_id: undefined,
+        result: "success",
+      });
     }
   });
 });
@@ -142,10 +158,54 @@ describe("PaymentResult", () => {
     expect(statusCalls()).toBe(calls + 1);
   });
 
+  it("keeps polling when VNPay says success but the backend is still PENDING", async () => {
+    mockFetch(() => Response.json(status("PENDING")));
+    renderResult("6", "success");
+    expect(await screen.findByText(/waiting for vnpay to confirm/i)).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS));
+    expect(statusCalls()).toBe(2);
+  });
+
+  for (const hint of ["failed", "invalid"] as const) {
+    it(`does not poll when VNPay returned ${hint} and the backend is still PENDING`, async () => {
+      mockFetch(
+        () => Response.json(status("PENDING")),
+        () => Response.json(status("PAID")),
+      );
+      const assign = vi.spyOn(browserNavigation, "assign").mockImplementation(() => {});
+      renderResult("6", hint);
+      expect(await screen.findByText("Payment wasn’t completed on VNPay")).toBeInTheDocument();
+      expect(
+        screen.getByText("If you did pay, confirmation may still arrive."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/waiting for vnpay to confirm/i)).not.toBeInTheDocument();
+
+      await act(() => vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 5));
+      expect(statusCalls()).toBe(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Try payment again" }));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(assign).toHaveBeenCalledWith(VNPAY_URL);
+
+      // The server stays authoritative: a later check showing PAID wins over the hint.
+      fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+      expect(await screen.findByText("Payment received")).toBeInTheDocument();
+      expect(statusCalls()).toBe(2);
+    });
+  }
+
+  it("hides the retry for a returned-unpaid order the backend will not let you pay", async () => {
+    mockFetch(() => Response.json(status("PENDING", { can_retry: false })));
+    renderResult("6", "failed");
+    await screen.findByText("Payment wasn’t completed on VNPay");
+    expect(screen.queryByRole("button", { name: "Try payment again" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
+  });
+
   it("shows a failed payment even when VNPay's query said success, and retries safely", async () => {
     mockFetch(() => Response.json(status("FAILED")));
     const assign = vi.spyOn(browserNavigation, "assign").mockImplementation(() => {});
-    renderResult("6");
+    renderResult("6", "success");
     expect(await screen.findByText("Payment was not completed")).toBeInTheDocument();
 
     const retry = screen.getByRole("button", { name: "Try payment again" });

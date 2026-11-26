@@ -12,9 +12,10 @@ import { openVnpayPage, orderApi, type PaymentStatus } from "@/lib/order-api";
 export const POLL_INTERVAL_MS = 3000;
 export const POLL_LIMIT_MS = 60000;
 
-// Only order_id is read. VNPay's `result` query value is ignored: the page always asks the
-// backend, whose state is updated by the signed IPN. The router parses `?order_id=6` as a
-// number; keeping it numeric avoids a canonicalizing redirect to `?order_id="6"`.
+// The backend payment status (updated by the signed IPN) is always the source of truth.
+// VNPay's `result` value only chooses wording while the backend still reports PENDING.
+// The router parses `?order_id=6` as a number; keeping it numeric avoids a canonicalizing
+// redirect to `?order_id="6"`.
 const searchSchema = z.object({
   order_id: z
     .union([z.string().regex(/^[1-9]\d*$/), z.number()])
@@ -22,7 +23,9 @@ const searchSchema = z.object({
     .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER))
     .optional()
     .catch(undefined),
+  result: z.enum(["success", "failed", "invalid"]).optional().catch(undefined),
 });
+export type VnpayResultHint = z.infer<typeof searchSchema>["result"];
 
 export const Route = createFileRoute("/payment/result")({
   ssr: false,
@@ -45,20 +48,32 @@ function awaitingConfirmation(payment: PaymentStatus) {
 }
 
 function PaymentResultPage() {
-  const { order_id } = Route.useSearch();
+  const { order_id, result } = Route.useSearch();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <StoreHeader />
       <main className="mx-auto max-w-lg px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
-        <PaymentResult orderId={order_id === undefined ? undefined : String(order_id)} />
+        <PaymentResult
+          orderId={order_id === undefined ? undefined : String(order_id)}
+          vnpayResult={result}
+        />
       </main>
     </div>
   );
 }
 
-export function PaymentResult({ orderId }: { orderId: string | undefined }) {
+export function PaymentResult({
+  orderId,
+  vnpayResult,
+}: {
+  orderId: string | undefined;
+  vnpayResult?: VnpayResultHint;
+}) {
   const hasToken =
     typeof window !== "undefined" && Boolean(sessionStorage.getItem(ACCESS_TOKEN_KEY));
+  // VNPay sent the customer back without a successful payment; while the backend still says
+  // PENDING, do not keep the customer waiting on a minute of polling.
+  const returnedUnpaid = vnpayResult === "failed" || vnpayResult === "invalid";
   // Polling window: starts on mount and again on "Check again"; a timer ends it so the
   // page switches state even when repeated polls return identical data.
   const [pollStartedAt, setPollStartedAt] = useState(() => Date.now());
@@ -70,18 +85,20 @@ export function PaymentResult({ orderId }: { orderId: string | undefined }) {
     retry: false,
     refetchInterval: (query) => {
       const payment = query.state.data?.data;
-      return payment && awaitingConfirmation(payment) && !pollExpired ? POLL_INTERVAL_MS : false;
+      return payment && awaitingConfirmation(payment) && !pollExpired && !returnedUnpaid
+        ? POLL_INTERVAL_MS
+        : false;
     },
   });
   const awaiting = status.data ? awaitingConfirmation(status.data.data) : false;
   useEffect(() => {
-    if (!awaiting || pollExpired) return;
+    if (!awaiting || pollExpired || returnedUnpaid) return;
     const timer = setTimeout(
       () => setPollExpired(true),
       Math.max(0, pollStartedAt + POLL_LIMIT_MS - Date.now()),
     );
     return () => clearTimeout(timer);
-  }, [awaiting, pollExpired, pollStartedAt]);
+  }, [awaiting, pollExpired, pollStartedAt, returnedUnpaid]);
   const [redirecting, setRedirecting] = useState(false);
   const [retryError, setRetryError] = useState("");
   const retry = useMutation({
@@ -104,6 +121,20 @@ export function PaymentResult({ orderId }: { orderId: string | undefined }) {
   const ordersLink = (
     <Button asChild variant="outline" className="min-h-11">
       <Link to="/dashboard">View your orders</Link>
+    </Button>
+  );
+  const retryErrorText = retryError ? (
+    <p role="alert" className="text-sm text-destructive">
+      {retryError}
+    </p>
+  ) : null;
+  const retryButton = (id: string) => (
+    <Button
+      className="min-h-11"
+      disabled={retry.isPending || redirecting}
+      onClick={() => retry.mutate(id)}
+    >
+      {retry.isPending || redirecting ? "Opening VNPay…" : "Try payment again"}
     </Button>
   );
 
@@ -190,6 +221,36 @@ export function PaymentResult({ orderId }: { orderId: string | undefined }) {
     );
   }
 
+  if (awaitingConfirmation(payment) && returnedUnpaid) {
+    return (
+      <section className="space-y-4">
+        {heading}
+        <Alert variant="destructive" role="status">
+          <AlertDescription>
+            <p className="font-medium">Payment wasn’t completed on VNPay</p>
+            Your order of {total} is kept and has not been paid yet.
+          </AlertDescription>
+        </Alert>
+        {retryErrorText}
+        {payment.can_retry && <div>{retryButton(payment.order_id)}</div>}
+        <p className="text-sm text-muted-foreground">
+          If you did pay, confirmation may still arrive.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={status.isFetching}
+            onClick={() => void status.refetch()}
+          >
+            {status.isFetching ? "Checking…" : "Check again"}
+          </Button>
+          {ordersLink}
+        </div>
+      </section>
+    );
+  }
+
   if (awaitingConfirmation(payment)) {
     return (
       <section className="space-y-4">
@@ -233,21 +294,9 @@ export function PaymentResult({ orderId }: { orderId: string | undefined }) {
             VNPay did not take your payment of {total}. Your order is kept; you can pay again.
           </AlertDescription>
         </Alert>
-        {retryError && (
-          <p role="alert" className="text-sm text-destructive">
-            {retryError}
-          </p>
-        )}
+        {retryErrorText}
         <div className="flex flex-wrap gap-2">
-          {payment.can_retry && (
-            <Button
-              className="min-h-11"
-              disabled={retry.isPending || redirecting}
-              onClick={() => retry.mutate(payment.order_id)}
-            >
-              {retry.isPending || redirecting ? "Opening VNPay…" : "Try payment again"}
-            </Button>
-          )}
+          {payment.can_retry && retryButton(payment.order_id)}
           {ordersLink}
         </div>
       </section>
