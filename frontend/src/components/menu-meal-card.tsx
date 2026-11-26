@@ -3,32 +3,39 @@ import { ArrowRight, Check, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ACCESS_TOKEN_KEY } from "@/lib/admin-api";
 import type { Meal } from "@/lib/catalog-api";
 import { useCartStore } from "@/stores/cart-store";
 import { goalLabels, mealAmount, mealMacros, mealPrice } from "./menu/meal-display";
 import { getLocalMealImage, MenuMealImage } from "./menu/meal-image";
 
 export function MenuMealCard({ meal }: { meal: Meal }) {
-  const [added, setAdded] = useState(false);
+  const [added, setAdded] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const signInLink = useRef<HTMLAnchorElement>(null);
   const addItem = useCartStore((state) => state.addItem);
   const isLoading = useCartStore((state) => state.isLoading);
 
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(0), 1300);
+    return () => window.clearTimeout(timer);
+  }, [added]);
+
+  useEffect(() => {
+    if (needsSignIn) signInLink.current?.focus();
+  }, [needsSignIn]);
 
   async function handleQuickAdd() {
     setError(null);
+    if (!sessionStorage.getItem(ACCESS_TOKEN_KEY)) {
+      setNeedsSignIn(true);
+      return;
+    }
     const success = await addItem(meal.id);
     if (success) {
-      setAdded(true);
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setAdded(false), 1300);
+      setAdded((count) => count + 1);
     } else {
       setError(useCartStore.getState().error ?? "Could not add this meal.");
     }
@@ -72,21 +79,29 @@ export function MenuMealCard({ meal }: { meal: Meal }) {
           >
             View meal <ArrowRight className="size-4" aria-hidden />
           </Link>
-          <Button
-            type="button"
-            size="sm"
-            className="min-h-11 gap-1.5 px-3"
-            disabled={meal.is_available !== true || isLoading}
-            onClick={() => void handleQuickAdd()}
-            aria-label={`${added ? "Added" : "Add to cart"}: ${meal.name}`}
-          >
-            {added ? (
-              <Check className="size-4" aria-hidden />
-            ) : (
-              <Plus className="size-4" aria-hidden />
-            )}
-            {added ? "Added" : "Add to cart"}
-          </Button>
+          {needsSignIn ? (
+            <Button asChild size="sm" className="min-h-11 px-3">
+              <Link ref={signInLink} to="/login" aria-label={`Sign in to add: ${meal.name}`}>
+                Sign in to add
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-11 gap-1.5 px-3"
+              disabled={meal.is_available !== true || isLoading}
+              onClick={() => void handleQuickAdd()}
+              aria-label={`${added ? "Added" : "Add to cart"}: ${meal.name}`}
+            >
+              {added ? (
+                <Check className="size-4" aria-hidden />
+              ) : (
+                <Plus className="size-4" aria-hidden />
+              )}
+              {added ? "Added" : "Add to cart"}
+            </Button>
+          )}
         </div>
         {error && (
           <p role="alert" className="text-sm text-destructive">

@@ -1,33 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowRight,
-  Check,
-  Leaf,
-  LoaderCircle,
+  CalendarDays,
+  CookingPot,
   PackageCheck,
-  ShieldCheck,
   Sparkles,
+  Utensils,
 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
 import heroImage from "@/assets/fitfuel-meal-hero.jpg";
-import { DemoMealCard } from "@/components/demo-meal-card";
 import { MenuMealCard } from "@/components/menu-meal-card";
 import { goalLabels } from "@/components/menu/meal-display";
-import { demoMeals } from "@/lib/demo-store";
-import { SubscriptionPlans } from "@/components/subscription-plans";
 import { StoreHeader } from "@/components/store-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { goalTypes, type GoalType } from "@/lib/catalog-api";
-import { menuApi, MenuApiError, type NutritionFilters } from "@/lib/menu-api";
+import { menuApi } from "@/lib/menu-api";
 
-const mealGrid = "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
-const rangeGroups = [
-  { key: "calories", label: "Calories (kcal)" },
-  { key: "protein", label: "Protein (g)" },
+const goals = [
+  { goal: "CUT", copy: "Lighter meals for your cutting phase." },
+  { goal: "BULK", copy: "Heartier portions to fuel your bulk." },
+  { goal: "MAINTAIN", copy: "Balanced meals for your everyday routine." },
 ] as const;
 
 export const Route = createFileRoute("/")({
@@ -48,237 +40,14 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-function Menu() {
-  const [goal, setGoal] = useState<GoalType | undefined>();
-  const [input, setInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [ranges, setRanges] = useState<NutritionFilters>({});
-  const [invalidRange, setInvalidRange] = useState<(typeof rangeGroups)[number]["key"]>();
-  const rangeForm = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    const next = input.trim();
-    if (next === search) return;
-    const timeout = window.setTimeout(() => setSearch(next), 300);
-    return () => window.clearTimeout(timeout);
-  }, [input, search]);
-
-  const filters = { goal_type: goal, search, ...ranges };
-  const query = useInfiniteQuery({
-    queryKey: ["menu", "meals", filters],
-    initialPageParam: 1,
-    queryFn: ({ pageParam, signal }) => menuApi.listMeals(filters, pageParam, signal),
-    getNextPageParam: ({ pagination }) =>
-      pagination.page < Math.min(pagination.total_pages, 100000) ? pagination.page + 1 : undefined,
+function HomePage() {
+  const featured = useQuery({
+    queryKey: ["menu", "meals", {}, 1],
+    queryFn: ({ signal }) => menuApi.listMeals({}, 1, signal),
     retry: false,
   });
-  const meals = new Map(
-    query.data?.pages.flatMap(({ data }) => data.map((meal) => [meal.id, meal] as const)),
-  );
-  const filtered = Boolean(
-    goal || search || Object.values(ranges).some((value) => value !== undefined),
-  );
-  const showSamples = !query.data && query.error instanceof MenuApiError && query.error.unavailable;
+  const meals = featured.data?.data.slice(0, 4) ?? [];
 
-  function clearFilters() {
-    rangeForm.current?.reset();
-    setGoal(undefined);
-    setInput("");
-    setSearch("");
-    setRanges({});
-    setInvalidRange(undefined);
-  }
-
-  function applyRanges(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const next: NutritionFilters = {};
-    for (const { key } of rangeGroups) {
-      const min = form.get(`min_${key}`);
-      const max = form.get(`max_${key}`);
-      const lower = min ? Number(min) : undefined;
-      const upper = max ? Number(max) : undefined;
-      if (lower !== undefined && upper !== undefined && lower > upper) {
-        setInvalidRange(key);
-        return;
-      }
-      next[`min_${key}`] = lower;
-      next[`max_${key}`] = upper;
-    }
-    setInvalidRange(undefined);
-    setRanges(next);
-  }
-
-  return (
-    <section
-      id="menu"
-      aria-labelledby="menu-heading"
-      className="mx-auto max-w-[1440px] scroll-mt-20 px-5 pb-16 pt-12 sm:px-8 lg:px-12 lg:pb-24"
-    >
-      <h2 id="menu-heading" className="font-display text-3xl font-bold sm:text-4xl">
-        On the menu
-      </h2>
-      <div className="my-5 space-y-4 border-y border-border py-4">
-        <div className="grid items-end gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="menu-search">Search meals</Label>
-            <Input
-              id="menu-search"
-              type="search"
-              value={input}
-              maxLength={200}
-              className="h-11"
-              onChange={(event) => setInput(event.target.value)}
-            />
-          </div>
-          <fieldset className="min-w-0">
-            <legend className="mb-1.5 text-sm font-medium">Fitness goal</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {[undefined, ...goalTypes].map((option) => (
-                <Button
-                  key={option ?? "all"}
-                  type="button"
-                  variant={goal === option ? "default" : "outline"}
-                  aria-pressed={goal === option}
-                  onClick={() => setGoal(option)}
-                  className="min-h-11 flex-1 px-2.5 sm:flex-none sm:px-5"
-                >
-                  {option ? goalLabels[option] : "All"}
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-        </div>
-        <form ref={rangeForm} onSubmit={applyRanges} className="space-y-2">
-          <div className="grid grid-cols-2 items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
-            {rangeGroups.map(({ key, label }) => (
-              <fieldset key={key} className="min-w-0">
-                <legend className="mb-1.5 text-sm font-medium">{label}</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["min", "max"] as const).map((bound) => {
-                    const name = `${bound}_${key}`;
-                    return (
-                      <div key={name} className="min-w-0 space-y-1">
-                        <Label htmlFor={name} className="block text-xs">
-                          {bound === "min" ? "Min" : "Max"}
-                          <span className="sr-only"> {key}</span>
-                        </Label>
-                        <Input
-                          id={name}
-                          name={name}
-                          type="number"
-                          min={0}
-                          step="any"
-                          className="h-11 px-2"
-                          aria-invalid={invalidRange === key ? true : undefined}
-                          aria-describedby={invalidRange === key ? "menu-range-error" : undefined}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            ))}
-            <div className="col-span-2 flex flex-wrap gap-2 md:col-span-1">
-              <Button type="submit" variant="outline" className="min-h-11">
-                Apply ranges
-              </Button>
-              <Button type="button" variant="ghost" className="min-h-11" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            </div>
-          </div>
-          {invalidRange && (
-            <p id="menu-range-error" role="alert" className="text-sm text-destructive">
-              Maximum {invalidRange} must be at least the minimum.
-            </p>
-          )}
-        </form>
-      </div>
-
-      {query.isPending ? (
-        <div
-          role="status"
-          className="flex min-h-48 items-center justify-center gap-2 text-muted-foreground"
-        >
-          <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
-          Loading meals…
-        </div>
-      ) : !query.data ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <p role="alert" className="text-sm text-muted-foreground">
-              {showSamples
-                ? "Live menu unavailable. Sample previews are shown below."
-                : "Could not load meals."}
-            </p>
-            <Button
-              variant="outline"
-              className="min-h-11"
-              disabled={query.isFetching}
-              onClick={() => void query.refetch()}
-            >
-              Try again
-            </Button>
-          </div>
-          {showSamples && (
-            <div className={mealGrid}>
-              {demoMeals.map((meal) => (
-                <DemoMealCard key={meal.id} meal={meal} />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : meals.size === 0 ? (
-        <p role="status" className="border-b border-border py-10 text-center text-muted-foreground">
-          {filtered ? "No meals match your filters." : "There are no meals on the menu right now."}
-        </p>
-      ) : (
-        <>
-          <div className={mealGrid}>
-            {[...meals.values()].map((meal) => (
-              <MenuMealCard key={meal.id} meal={meal} />
-            ))}
-          </div>
-          {(query.hasNextPage || query.isError) && (
-            <div className="mt-5 flex flex-col items-center gap-2">
-              {query.isError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {query.isFetchNextPageError
-                    ? "Could not load more meals."
-                    : "Could not refresh the menu."}
-                </p>
-              )}
-              {query.isRefetchError ? (
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  disabled={query.isFetching}
-                  onClick={() => void query.refetch()}
-                >
-                  Try again
-                </Button>
-              ) : (
-                query.hasNextPage && (
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    disabled={query.isFetching}
-                    onClick={() => void query.fetchNextPage({ cancelRefetch: false })}
-                  >
-                    {query.isFetchingNextPage ? "Loading more…" : "Load more"}
-                  </Button>
-                )
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <StoreHeader />
@@ -307,12 +76,12 @@ function HomePage() {
                 Chef-made meal prep that keeps your goals in sight and your fridge full of good
                 decisions.
               </p>
-              <a
-                href="#menu"
+              <Link
+                to="/menu"
                 className="mt-8 inline-flex h-12 items-center gap-3 rounded-sm bg-lime px-5 text-sm font-bold text-foreground transition-transform hover:-translate-y-0.5"
               >
-                Find your fuel <ArrowRight className="size-4" />
-              </a>
+                Browse the menu <ArrowRight className="size-4" />
+              </Link>
               <p className="mt-7 flex items-center gap-2 text-xs text-primary-foreground/75">
                 <PackageCheck className="size-4" /> Freshly prepared · delivered to your door
               </p>
@@ -323,39 +92,124 @@ function HomePage() {
           </div>
         </section>
 
-        <Menu />
+        <section
+          aria-labelledby="shop-by-goal"
+          className="mx-auto max-w-[1440px] px-5 pt-12 sm:px-8 lg:px-12"
+        >
+          <h2 id="shop-by-goal" className="font-display text-3xl font-bold sm:text-4xl">
+            Shop by goal
+          </h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {goals.map(({ goal, copy }) => (
+              <Link
+                key={goal}
+                to="/menu"
+                search={{ goal }}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <div>
+                  <h3 className="font-display text-lg font-semibold">{goalLabels[goal]}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{copy}</p>
+                </div>
+                <ArrowRight className="size-4 shrink-0" aria-hidden />
+              </Link>
+            ))}
+          </div>
+        </section>
 
-        <SubscriptionPlans />
+        <section
+          id="menu"
+          aria-labelledby="featured-meals"
+          className="mx-auto max-w-[1440px] scroll-mt-20 px-5 py-12 sm:px-8 lg:px-12 lg:pb-16"
+        >
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+            <h2 id="featured-meals" className="font-display text-3xl font-bold sm:text-4xl">
+              Featured meals
+            </h2>
+            <Button asChild variant="outline" className="min-h-11">
+              <Link to="/menu">
+                {featured.data
+                  ? `See all ${featured.data.pagination.total} meals`
+                  : "See the full menu"}
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+          {meals.length > 0 ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {meals.map((meal) => (
+                <MenuMealCard key={meal.id} meal={meal} />
+              ))}
+            </div>
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">
+              {featured.isPending
+                ? "Loading meals…"
+                : featured.isError
+                  ? "Could not load featured meals."
+                  : "There are no meals on the menu right now."}
+            </p>
+          )}
+        </section>
 
-        <section className="border-y border-border bg-secondary/65">
-          <div className="mx-auto grid max-w-[1440px] gap-0 px-5 sm:grid-cols-3 sm:px-8 lg:px-12">
+        <section aria-labelledby="how-it-works" className="border-y border-border bg-secondary/65">
+          <div className="mx-auto max-w-[1440px] px-5 pt-8 sm:px-8 lg:px-12">
+            <h2 id="how-it-works" className="font-display text-3xl font-bold sm:text-4xl">
+              How it works
+            </h2>
+          </div>
+          <ol className="mx-auto grid max-w-[1440px] gap-0 px-5 sm:grid-cols-3 sm:px-8 lg:px-12">
             {[
               {
-                icon: Leaf,
-                title: "Ingredients with intention",
-                copy: "Real food, chosen with care.",
+                icon: Utensils,
+                title: "Choose your meals",
+                copy: "Pick the meals that fit your goals.",
               },
-              { icon: Check, title: "Macros made clear", copy: "Know what’s on your plate." },
               {
-                icon: ShieldCheck,
-                title: "Ready when you are",
-                copy: "Fresh meals, no guesswork.",
+                icon: CalendarDays,
+                title: "Choose your delivery date",
+                copy: "Plan for the day that works for you.",
+              },
+              {
+                icon: CookingPot,
+                title: "Heat and eat",
+                copy: "Warm up your meal when you’re ready.",
               },
             ].map(({ icon: Icon, title, copy }) => (
-              <div
+              <li
                 key={title}
                 className="flex items-center gap-4 border-b border-border py-6 last:border-0 sm:border-b-0 sm:border-r sm:px-6 sm:first:pl-0 sm:last:border-r-0 lg:py-8"
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-sm bg-background">
-                  <Icon className="size-5 text-fresh" />
+                  <Icon className="size-5 text-fresh" aria-hidden />
                 </span>
                 <div>
                   <p className="text-sm font-bold">{title}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{copy}</p>
                 </div>
-              </div>
+              </li>
             ))}
+          </ol>
+        </section>
+
+        <section
+          id="plans"
+          aria-labelledby="plans-summary"
+          className="mx-auto flex max-w-[1440px] scroll-mt-20 flex-wrap items-center justify-between gap-5 px-5 py-12 sm:px-8 lg:px-12"
+        >
+          <div>
+            <h2 id="plans-summary" className="font-display text-3xl font-bold sm:text-4xl">
+              Meal plans
+            </h2>
+            <p className="mt-2 text-muted-foreground">
+              Keep your routine on track with a 7-day or 30-day meal plan.
+            </p>
           </div>
+          <Button asChild className="min-h-11">
+            <Link to="/plans">
+              Compare plans <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </Button>
         </section>
       </main>
       <footer className="mx-auto flex max-w-[1440px] flex-col gap-3 px-5 py-7 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
@@ -363,9 +217,23 @@ function HomePage() {
           fitfuel<span className="text-coral">.</span>
         </span>
         <span>Good food for your next great thing.</span>
-        <Link to="/dashboard" className="font-semibold text-foreground hover:text-coral">
-          Your fuel tracker <ArrowRight className="inline size-3.5" />
-        </Link>
+        <nav
+          aria-label="Footer navigation"
+          className="flex flex-wrap gap-x-4 font-semibold text-foreground"
+        >
+          <Link to="/menu" className="py-2 hover:text-coral">
+            Menu
+          </Link>
+          <Link to="/plans" className="py-2 hover:text-coral">
+            Plans
+          </Link>
+          <Link to="/nutrition" className="py-2 hover:text-coral">
+            Nutrition
+          </Link>
+          <Link to="/dashboard" className="py-2 hover:text-coral">
+            Your fuel tracker <ArrowRight className="inline size-3.5" aria-hidden />
+          </Link>
+        </nav>
       </footer>
     </div>
   );

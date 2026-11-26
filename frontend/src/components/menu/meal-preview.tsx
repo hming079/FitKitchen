@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Meal } from "@/lib/catalog-api";
+import { ACCESS_TOKEN_KEY } from "@/lib/admin-api";
 import { menuApi } from "@/lib/menu-api";
 import { mealAmount, mealMacros, mealPrice } from "./meal-display";
 import { useCartStore } from "@/stores/cart-store";
@@ -24,10 +26,22 @@ function formatMeasure(value: number, unit: string) {
 
 export function MealPreview({ meal }: { meal: Meal }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [added, setAdded] = useState(false);
+  const [added, setAdded] = useState(0);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const signInLink = useRef<HTMLAnchorElement>(null);
   const addItem = useCartStore((state) => state.addItem);
   const adding = useCartStore((state) => state.isLoading);
-  const cartError = useCartStore((state) => state.error);
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(0), 1400);
+    return () => window.clearTimeout(timer);
+  }, [added]);
+
+  useEffect(() => {
+    if (needsSignIn) signInLink.current?.focus();
+  }, [needsSignIn]);
+
   const query = useQuery({
     queryKey: ["menu", "options", meal.id],
     queryFn: ({ signal }) => menuApi.listOptions(meal.id, signal),
@@ -52,6 +66,20 @@ export function MealPreview({ meal }: { meal: Meal }) {
     ),
   }));
 
+  async function handleAdd() {
+    setCartError(null);
+    if (!sessionStorage.getItem(ACCESS_TOKEN_KEY)) {
+      setNeedsSignIn(true);
+      return;
+    }
+    const success = await addItem(
+      meal.id,
+      chosen.map(({ id }) => id),
+    );
+    if (success) setAdded((count) => count + 1);
+    else setCartError(useCartStore.getState().error ?? "Could not add this meal.");
+  }
+
   return (
     <div className="mt-6 space-y-6">
       <section aria-labelledby="meal-nutrition">
@@ -68,7 +96,7 @@ export function MealPreview({ meal }: { meal: Meal }) {
                 <TableHead scope="col" className="text-right">
                   Original
                 </TableHead>
-                {options.length > 0 && (
+                {chosen.length > 0 && (
                   <TableHead scope="col" className="pr-3 text-right">
                     Customized
                   </TableHead>
@@ -82,7 +110,7 @@ export function MealPreview({ meal }: { meal: Meal }) {
                     {label}
                   </th>
                   <TableCell className="whitespace-nowrap pr-3 text-right">{original}</TableCell>
-                  {options.length > 0 && (
+                  {chosen.length > 0 && (
                     <TableCell className="whitespace-nowrap pr-3 text-right font-semibold">
                       {customized}
                     </TableCell>
@@ -92,7 +120,7 @@ export function MealPreview({ meal }: { meal: Meal }) {
             </TableBody>
           </Table>
         </div>
-        {options.length > 0 && (
+        {chosen.length > 0 && (
           <p role="status" className="sr-only">
             Customized per meal.{" "}
             {totals.map(({ label, customized }) => `${label} ${customized}`).join(", ")}
@@ -143,7 +171,7 @@ export function MealPreview({ meal }: { meal: Meal }) {
                       <Checkbox
                         id={inputId}
                         aria-labelledby={`${inputId}-name`}
-                        aria-describedby={option.description ? `${inputId}-description` : undefined}
+                        aria-describedby={`${inputId}-adjustments${option.description ? ` ${inputId}-description` : ""}`}
                         className="mt-0.5 size-5"
                         checked={selected.has(option.id)}
                         onCheckedChange={(checked) =>
@@ -158,6 +186,16 @@ export function MealPreview({ meal }: { meal: Meal }) {
                       <span className="min-w-0 [overflow-wrap:anywhere]">
                         <span id={`${inputId}-name`} className="block text-base font-medium">
                           {option.name}
+                        </span>
+                        <span
+                          id={`${inputId}-adjustments`}
+                          className="mt-1 block font-normal text-muted-foreground"
+                        >
+                          {option.price_adjustment > 0 ? "+" : ""}
+                          {mealPrice.format(option.price_adjustment)}
+                          {" · "}
+                          {option.calories_adjustment > 0 ? "+" : ""}
+                          {mealAmount.format(option.calories_adjustment)} kcal
                         </span>
                         {option.description && (
                           <span
@@ -176,29 +214,32 @@ export function MealPreview({ meal }: { meal: Meal }) {
           )}
         </section>
       )}
-      <div className="space-y-2">
-        <Button
-          disabled={meal.is_available !== true || adding || query.isPending || query.isError}
-          aria-describedby="meal-ordering-note"
-          className="min-h-11 w-full sm:w-auto"
-          onClick={async () => {
-            const success = await addItem(meal.id, [...selected]);
-            if (success) {
-              setAdded(true);
-              window.setTimeout(() => setAdded(false), 1400);
-            }
-          }}
-        >
-          {adding ? "Adding…" : added ? "Added to cart" : "Add to cart"}
-        </Button>
+      <div className="fixed inset-x-0 bottom-0 z-30 space-y-2 border-t border-border bg-background px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:border-0 sm:p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start">
+          <p className="flex items-baseline gap-2 text-sm sm:hidden">
+            Total <strong className="text-base tabular-nums">{totals[0]?.customized}</strong>
+          </p>
+          {needsSignIn && meal.is_available ? (
+            <Button asChild className="min-h-11">
+              <Link ref={signInLink} to="/login">
+                Sign in to add
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              disabled={meal.is_available !== true || adding || query.isPending || query.isError}
+              className="min-h-11"
+              onClick={() => void handleAdd()}
+            >
+              {adding ? "Adding…" : added ? "Added to cart" : "Add to cart"}
+            </Button>
+          )}
+        </div>
         {(cartError || !meal.is_available) && (
           <p role="alert" className="text-sm text-destructive">
             {cartError || "This meal is not available to order."}
           </p>
         )}
-        <p id="meal-ordering-note" className="text-sm text-muted-foreground">
-          Sign in with a customer account to save your cart and place an order.
-        </p>
       </div>
     </div>
   );
