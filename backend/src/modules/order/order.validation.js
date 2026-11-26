@@ -59,6 +59,7 @@ function validateCheckout(body) {
     "delivery_date",
     "delivery_time_slot",
     "payment_method",
+    "promotion_code",
   ]);
   const address_id = positiveId(body.address_id, "address_id");
   if (
@@ -89,11 +90,18 @@ function validateCheckout(body) {
     invalid("delivery_time_slot is not supported");
   if (body.payment_method !== "COD" && body.payment_method !== "ONLINE")
     invalid("payment_method must be COD or ONLINE");
+  let promotion_code;
+  if (body.promotion_code !== undefined) {
+    if (typeof body.promotion_code !== "string" || body.promotion_code.trim().length > 50)
+      invalid("promotion_code must be at most 50 characters");
+    promotion_code = body.promotion_code.trim().toUpperCase() || undefined;
+  }
   return {
     address_id,
     delivery_date: body.delivery_date,
     delivery_time_slot: delivery_time_slot ?? null,
     payment_method: body.payment_method,
+    ...(promotion_code ? { promotion_code } : {}),
   };
 }
 

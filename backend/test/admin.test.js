@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateStatus, parseListQuery } = require('../src/modules/admin/customer.validation');
+const { parseOverviewQuery } = require('../src/modules/admin/operations.service');
 const { requireRole, requireSelf } = require('../src/middleware/auth');
 
 function response() {
@@ -21,6 +22,34 @@ test('list query is bounded and rejects invalid filters and pagination', () => {
     assert.deepEqual(parseListQuery({}), { search: '', status: 'all', page: 1, page_size: 20 });
     for (const query of [{ page: '0' }, { page: '1.2' }, { page_size: '101' }, { status: 'other' }, { search: ['x'] }]) {
         assert.throws(() => parseListQuery(query));
+    }
+});
+
+test('overview query validates presets, custom date bounds, grouping and top_limit', () => {
+    assert.deepEqual(parseOverviewQuery(), {
+        range: 'this_week', start_date: null, end_date: null, group_by: 'day', top_limit: 5
+    });
+    assert.deepEqual(parseOverviewQuery('last_week'), {
+        range: 'last_week', start_date: null, end_date: null, group_by: 'day', top_limit: 5
+    });
+    assert.deepEqual(parseOverviewQuery({
+        start_date: '2026-01-01', end_date: '2026-06-30', group_by: 'month', top_limit: '10'
+    }), {
+        range: 'custom', start_date: '2026-01-01', end_date: '2026-06-30', group_by: 'month', top_limit: 10
+    });
+    for (const bad of [
+        { range: 'last_year' },
+        { group_by: 'week' },
+        { start_date: '2026-01-01' },
+        { end_date: '2026-01-01' },
+        { start_date: '2026-02-30', end_date: '2026-03-01' },
+        { start_date: '2026-03-02', end_date: '2026-03-01' },
+        { start_date: '2025-01-01', end_date: '2026-06-01', group_by: 'day' },
+        { start_date: '2020-01-01', end_date: '2026-06-01', group_by: 'month' },
+        { top_limit: '0' },
+        { top_limit: '21' },
+    ]) {
+        assert.throws(() => parseOverviewQuery(bad), { status: 400 });
     }
 });
 

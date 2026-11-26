@@ -21,30 +21,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { orderApi, type Order } from "@/lib/order-api";
-
-const money = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
-  maximumFractionDigits: 0,
-});
-const dates = new Intl.DateTimeFormat("vi-VN", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function humanStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
-}
-
-function statusVariant(status: string) {
-  if (status === "COMPLETED") return "success" as const;
-  if (status === "CANCELLED") return "destructive" as const;
-  if (status === "PENDING") return "warning" as const;
-  return "secondary" as const;
-}
+import {
+  dates,
+  humanStatus,
+  money,
+  OrderDetails,
+  PaymentBadge,
+  paymentMethodText,
+  statusVariant,
+} from "@/components/order-details";
+import { canPayOnline, openVnpayPage, orderApi } from "@/lib/order-api";
 
 export function CustomerOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -61,6 +47,41 @@ export function CustomerOrders() {
     enabled: selectedOrderId !== null,
     retry: false,
   });
+  const [redirectingId, setRedirectingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState<{ orderId: string; message: string } | null>(null);
+  const payNow = useMutation({
+    mutationFn: (orderId: string) => orderApi.createVnpayPayment(orderId),
+    onMutate: () => setPayError(null),
+    onSuccess: (response, orderId) => {
+      if (openVnpayPage(response.data.redirect_url)) setRedirectingId(orderId);
+      else setPayError({ orderId, message: "The VNPay payment page could not be opened." });
+    },
+    onError: (failure, orderId) =>
+      setPayError({
+        orderId,
+        message: failure instanceof Error ? failure.message : "Could not start the VNPay payment.",
+      }),
+  });
+  const paying = (orderId: string) =>
+    (payNow.isPending && payNow.variables === orderId) || redirectingId === orderId;
+  // Lists keep one primary action per region, so rows use outline; the details dialog uses primary.
+  const payButton = (orderId: string, className: string, variant: "default" | "outline") => (
+    <Button
+      variant={variant}
+      className={className}
+      disabled={payNow.isPending || redirectingId !== null}
+      onClick={() => payNow.mutate(orderId)}
+      aria-label={`Pay now for order ${orderId}`}
+    >
+      {paying(orderId) ? "Opening VNPay…" : "Pay now"}
+    </Button>
+  );
+  const payErrorFor = (orderId: string) =>
+    payError?.orderId === orderId ? (
+      <p role="alert" className="text-sm text-destructive">
+        {payError.message}
+      </p>
+    ) : null;
   const cancelOrder = useMutation({
     mutationFn: orderApi.cancelOrder,
     onSuccess: async (response) => {
@@ -123,19 +144,22 @@ export function CustomerOrders() {
                   <Badge variant={statusVariant(item.status)} className="ml-2 align-middle">
                     {humanStatus(item.status)}
                   </Badge>
+                  <PaymentBadge order={item} className="ml-2 align-middle" />
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Delivery {dates.format(new Date(`${item.delivery_date}T00:00:00Z`))} · Cash on
-                  delivery
+                  Delivery {dates.format(new Date(`${item.delivery_date}T00:00:00Z`))} ·{" "}
+                  {paymentMethodText(item)}
                 </p>
                 {item.items_summary && (
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
                     {item.items_summary}
                   </p>
                 )}
+                {payErrorFor(item.id)}
               </div>
-              <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-col sm:items-end">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
                 <p className="font-semibold tabular-nums">{money.format(item.total_amount)}</p>
+                {canPayOnline(item) && payButton(item.id, "min-h-10", "outline")}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -189,17 +213,26 @@ export function CustomerOrders() {
                 : "Could not cancel this order. Refresh and try again."}
             </p>
           )}
+          {order.data && payErrorFor(order.data.data.id)}
           <DialogFooter>
-            {order.data?.data.status === "PENDING" && (
-              <Button
-                variant="destructive"
-                className="min-h-11"
-                disabled={cancelOrder.isPending}
-                onClick={() => setCancelTarget(order.data!.data.id)}
-              >
-                Cancel order
-              </Button>
-            )}
+            {order.data &&
+              canPayOnline(order.data.data) &&
+              payButton(order.data.data.id, "min-h-11", "default")}
+            {order.data?.data.status === "PENDING" &&
+              // Paid online orders have no refund flow; the backend rejects self-cancellation.
+              !(
+                order.data.data.payment_method === "ONLINE" &&
+                order.data.data.payment_status === "PAID"
+              ) && (
+                <Button
+                  variant="destructive"
+                  className="min-h-11"
+                  disabled={cancelOrder.isPending}
+                  onClick={() => setCancelTarget(order.data!.data.id)}
+                >
+                  Cancel order
+                </Button>
+              )}
             <Button
               variant="outline"
               className="min-h-11"
@@ -238,63 +271,5 @@ export function CustomerOrders() {
         </AlertDialogContent>
       </AlertDialog>
     </section>
-  );
-}
-
-function OrderDetails({ order }: { order: Order }) {
-  return (
-    <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-3 border-y border-border py-3 text-sm">
-        <div>
-          <dt className="text-muted-foreground">Status</dt>
-          <dd className="mt-1">
-            <Badge variant={statusVariant(order.status)}>{humanStatus(order.status)}</Badge>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Delivery date</dt>
-          <dd className="mt-1 font-medium">
-            {dates.format(new Date(`${order.delivery_date}T00:00:00Z`))}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Payment</dt>
-          <dd className="mt-1 font-medium">Cash on delivery</dd>
-        </div>
-      </dl>
-      <section aria-label="Ordered meals">
-        <h3 className="text-sm font-semibold">Meals</h3>
-        {order.items?.length ? (
-          <ul className="mt-2 divide-y divide-border border-y border-border">
-            {order.items.map((item) => (
-              <li
-                key={item.id ?? `${item.meal_id}-${item.name}`}
-                className="flex justify-between gap-3 py-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium [overflow-wrap:anywhere]">
-                    {item.name} × {item.quantity}
-                  </p>
-                  {item.options?.length ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {item.options.map(({ name }) => name).join(", ")}
-                    </p>
-                  ) : null}
-                </div>
-                <p className="shrink-0 font-medium tabular-nums">
-                  {money.format(item.unit_price * item.quantity)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">No meal details are available.</p>
-        )}
-      </section>
-      <div className="flex justify-between text-sm font-semibold">
-        <span>Total</span>
-        <span className="tabular-nums">{money.format(order.total_amount)}</span>
-      </div>
-    </div>
   );
 }

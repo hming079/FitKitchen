@@ -6,12 +6,14 @@ FitKitchen is a fitness meal delivery project with a customer storefront and a s
 
 | Area                       | What works in this branch                                                                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer menu/cart/orders  | PostgreSQL menu, customer-owned cart, COD checkout, saved delivery addresses, and customer order history. Sample meals are labeled previews; subscription add-on selections remain estimates. |
-| Online payment             | Backend VNPay Sandbox flow: signed payment URL, IPN that updates payment status, and return redirect. The storefront still checks out with COD until its payment UI ships; see [docs/PAYMENT_VNPAY.md](docs/PAYMENT_VNPAY.md). |
+| Customer menu/cart/orders  | PostgreSQL menu, customer-owned cart, COD or VNPay checkout, validated promotion codes, saved delivery addresses, and customer order history. Sample meals are labeled previews; subscription add-on selections remain estimates. |
+| Online payment             | VNPay Sandbox checkout is connected to the storefront. Signed payment URLs, authoritative IPN updates, payment status, safe redirect handling, and retry are implemented; see [docs/PAYMENT_VNPAY.md](docs/PAYMENT_VNPAY.md). |
+| Promotions                 | Admin promotion management and customer checkout validation support percentage/fixed discounts, dates, minimums, caps, usage limits, and order price snapshots. Codes apply to the meal subtotal of single-meal orders only, not to subscription plans. Usage is counted from non-cancelled orders, so cancelling an order releases its use (abandoned unpaid VNPay orders keep counting until cancelled). |
+| Admin dashboard            | PostgreSQL-backed daily/monthly revenue and top-meal metrics, plus the paid subscription renewal rate for customers whose next paid plan starts within seven days of expiry. Revenue and top meals count paid meal orders only (COD orders become paid when completed); subscription plan revenue is not included, and top-meal revenue is before discount codes. |
 | Admin Customers            | PostgreSQL-backed search, status filtering, pagination, profiles/addresses, order history, current plans, and audited lock/unlock.                                      |
 | Authorization              | JWT verification, database-backed ADMIN/CUSTOMER roles, account-lock enforcement, and user/address ownership checks.                                                    |
 | Email/password login       | **Not implemented yet.** `/login` is a visual preview. Admin records and JWT fixtures do not replace a real login flow.                                                 |
-| Other Admin tabs/dashboard | Existing demo/preview screens; do not treat their local data or actions as PostgreSQL operations.                                                                       |
+| Other Admin preview areas  | Some catalog/subscription screens and meal add-on choices remain previews; check each screen's API integration before treating a local action as persisted.             |
 
 ## Repository map
 
@@ -20,7 +22,7 @@ backend/
   src/app.js                 Express routes and error handling
   src/config/                Environment loading and PostgreSQL pool
   src/middleware/auth.js     JWT verification, role and ownership guards
-  src/modules/               User/address, meal and Admin modules
+  src/modules/               User/address, meal, promotion, payment and Admin modules
   db/init/                   Fresh PostgreSQL volume initialization
   db/migrations/             Existing-database upgrades
   scripts/                   Migration, local seed and JWT fixture commands

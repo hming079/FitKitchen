@@ -1,4 +1,5 @@
 const pool = require("../../config/database");
+const promotionService = require("../promotion/promotion.service");
 
 function problem(status, code, message) {
   const error = new Error(message);
@@ -223,7 +224,7 @@ async function clearCart(userId) {
 
 async function checkout(
   userId,
-  { address_id, delivery_date, delivery_time_slot, payment_method },
+  { address_id, delivery_date, delivery_time_slot, payment_method, promotion_code },
 ) {
   const client = await pool.connect();
   try {
@@ -288,13 +289,29 @@ async function checkout(
           item.quantity,
       0,
     );
+    const promotion = promotion_code
+      ? await promotionService.calculateOffer(client, userId, promotion_code, subtotalCents, { lock: true })
+      : null;
+    const discountCents = promotion ? cents(promotion.discount_amount) : 0;
+    const totalCents = subtotalCents - discountCents;
+    if (payment_method === "ONLINE" && totalCents <= 0)
+      throw problem(400, "PAYMENT_NOT_ALLOWED", "Online payment requires a positive order total");
     const order = await client.query(
-      `INSERT INTO customer_orders (user_id, address_id, total_amount, shipping_fee, status, payment_method, payment_status, delivery_date, delivery_time_slot)
-             VALUES ($1, $2, $3, 0, 'PENDING', $4, 'PENDING', $5::date, $6) RETURNING id, user_id, address_id, total_amount, shipping_fee, status, payment_method, payment_status, to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date, delivery_time_slot, created_at`,
+      `INSERT INTO customer_orders
+         (user_id, address_id, promotion_id, total_amount, subtotal_amount, discount_amount, promotion_code,
+          shipping_fee, status, payment_method, payment_status, delivery_date, delivery_time_slot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'PENDING', $8, 'PENDING', $9::date, $10)
+       RETURNING id, user_id, address_id, promotion_id, total_amount, subtotal_amount, discount_amount,
+          promotion_code, shipping_fee, status, payment_method, payment_status,
+          to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date, delivery_time_slot, created_at`,
       [
         userId,
         address_id,
+        promotion?.promotion_id ?? null,
+        money(totalCents),
         money(subtotalCents),
+        money(discountCents),
+        promotion?.code ?? null,
         payment_method,
         delivery_date,
         delivery_time_slot,
@@ -357,6 +374,13 @@ async function checkout(
     };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
+    // SERIALIZABLE conflict, e.g. two checkouts racing for the last use of a promotion code.
+    if (error.code === "40001")
+      throw problem(
+        409,
+        "CHECKOUT_CONFLICT",
+        "Your order could not be completed because something changed. Please try again.",
+      );
     throw error;
   } finally {
     client.release();
@@ -373,7 +397,8 @@ async function listOrders(userId, { page, page_size }) {
     );
     const result = await client.query(
       `SELECT o.id, o.created_at, to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date,
-              o.total_amount, o.shipping_fee, o.status, o.payment_method, o.payment_status, o.delivery_time_slot,
+              o.total_amount, o.subtotal_amount, o.discount_amount, o.promotion_code, o.shipping_fee,
+              o.status, o.payment_method, o.payment_status, o.delivery_time_slot,
               COALESCE(string_agg(COALESCE(m.name, 'Meal no longer available') || ' x' || oi.quantity,
                 ', ' ORDER BY oi.id), '') AS items_summary
        FROM customer_orders o
@@ -400,7 +425,8 @@ async function listOrders(userId, { page, page_size }) {
 async function findOrder(db, userId, id) {
   const order = await db.query(
     `SELECT id, created_at, to_char(delivery_date, 'YYYY-MM-DD') AS delivery_date,
-            total_amount, shipping_fee, status, payment_method, payment_status, delivery_time_slot
+            total_amount, subtotal_amount, discount_amount, promotion_code, shipping_fee,
+            status, payment_method, payment_status, delivery_time_slot
      FROM customer_orders WHERE user_id = $1 AND id = $2`,
     [userId, id],
   );

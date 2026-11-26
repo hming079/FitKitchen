@@ -22,6 +22,7 @@ import { Route as AccountOrdersRouteImport } from './routes/account.orders'
 import { Route as AccountPlansRouteImport } from './routes/account.plans'
 import { Route as AccountTrackerRouteImport } from './routes/account.tracker'
 import { Route as MealIdRouteImport } from './routes/meal.$id'
+import { Route as PaymentResultRouteImport } from './routes/payment.result'
 import { Route as ProductHandleRouteImport } from './routes/product.$handle'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const MealIdRoute = MealIdRouteImport.update({
   path: '/meal/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PaymentResultRoute = PaymentResultRouteImport.update({
+  id: '/payment/result',
+  path: '/payment/result',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductHandleRoute = ProductHandleRouteImport.update({
   id: '/product/$handle',
   path: '/product/$handle',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/account/plans': typeof AccountPlansRoute
   '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
   '/account/': typeof AccountIndexRoute
 }
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/account/plans': typeof AccountPlansRoute
   '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
   '/account': typeof AccountIndexRoute
 }
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/account/plans': typeof AccountPlansRoute
   '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
+  '/payment/result': typeof PaymentResultRoute
   '/product/$handle': typeof ProductHandleRoute
   '/account/': typeof AccountIndexRoute
 }
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/account/plans'
     | '/account/tracker'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
     | '/account/'
   fileRoutesByTo: FileRoutesByTo
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/account/plans'
     | '/account/tracker'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
     | '/account'
   id:
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/account/plans'
     | '/account/tracker'
     | '/meal/$id'
+    | '/payment/result'
     | '/product/$handle'
     | '/account/'
   fileRoutesById: FileRoutesById
@@ -203,6 +215,7 @@ export interface RootRouteChildren {
   NutritionRoute: typeof NutritionRoute
   PlansRoute: typeof PlansRoute
   MealIdRoute: typeof MealIdRoute
+  PaymentResultRoute: typeof PaymentResultRoute
   ProductHandleRoute: typeof ProductHandleRoute
 }
 
@@ -299,6 +312,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MealIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/payment/result': {
+      id: '/payment/result'
+      path: '/payment/result'
+      fullPath: '/payment/result'
+      preLoaderRoute: typeof PaymentResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$handle': {
       id: '/product/$handle'
       path: '/product/$handle'
@@ -336,6 +356,7 @@ const rootRouteChildren: RootRouteChildren = {
   NutritionRoute: NutritionRoute,
   PlansRoute: PlansRoute,
   MealIdRoute: MealIdRoute,
+  PaymentResultRoute: PaymentResultRoute,
   ProductHandleRoute: ProductHandleRoute,
 }
 export const routeTree = rootRouteImport
