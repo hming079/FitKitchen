@@ -10,18 +10,28 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MenuRouteImport } from './routes/menu'
 import { Route as NutritionRouteImport } from './routes/nutrition'
 import { Route as PlansRouteImport } from './routes/plans'
+import { Route as AccountIndexRouteImport } from './routes/account.index'
+import { Route as AccountOrdersRouteImport } from './routes/account.orders'
+import { Route as AccountPlansRouteImport } from './routes/account.plans'
+import { Route as AccountTrackerRouteImport } from './routes/account.tracker'
 import { Route as MealIdRouteImport } from './routes/meal.$id'
 import { Route as ProductHandleRouteImport } from './routes/product.$handle'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -54,6 +64,26 @@ const PlansRoute = PlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountOrdersRoute = AccountOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountPlansRoute = AccountPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountTrackerRoute = AccountTrackerRouteImport.update({
+  id: '/tracker',
+  path: '/tracker',
+  getParentRoute: () => AccountRoute,
+} as any)
 const MealIdRoute = MealIdRouteImport.update({
   id: '/meal/$id',
   path: '/meal/$id',
@@ -67,14 +97,19 @@ const ProductHandleRoute = ProductHandleRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
   '/plans': typeof PlansRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/account/plans': typeof AccountPlansRoute
+  '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
+  '/account/': typeof AccountIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -84,33 +119,47 @@ export interface FileRoutesByTo {
   '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
   '/plans': typeof PlansRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/account/plans': typeof AccountPlansRoute
+  '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
+  '/account': typeof AccountIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/menu': typeof MenuRoute
   '/nutrition': typeof NutritionRoute
   '/plans': typeof PlansRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/account/plans': typeof AccountPlansRoute
+  '/account/tracker': typeof AccountTrackerRoute
   '/meal/$id': typeof MealIdRoute
   '/product/$handle': typeof ProductHandleRoute
+  '/account/': typeof AccountIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/admin'
     | '/dashboard'
     | '/login'
     | '/menu'
     | '/nutrition'
     | '/plans'
+    | '/account/orders'
+    | '/account/plans'
+    | '/account/tracker'
     | '/meal/$id'
     | '/product/$handle'
+    | '/account/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -120,23 +169,33 @@ export interface FileRouteTypes {
     | '/menu'
     | '/nutrition'
     | '/plans'
+    | '/account/orders'
+    | '/account/plans'
+    | '/account/tracker'
     | '/meal/$id'
     | '/product/$handle'
+    | '/account'
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/admin'
     | '/dashboard'
     | '/login'
     | '/menu'
     | '/nutrition'
     | '/plans'
+    | '/account/orders'
+    | '/account/plans'
+    | '/account/tracker'
     | '/meal/$id'
     | '/product/$handle'
+    | '/account/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRouteWithChildren
   AdminRoute: typeof AdminRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
@@ -154,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -198,6 +264,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account/': {
+      id: '/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/orders': {
+      id: '/account/orders'
+      path: '/orders'
+      fullPath: '/account/orders'
+      preLoaderRoute: typeof AccountOrdersRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/plans': {
+      id: '/account/plans'
+      path: '/plans'
+      fullPath: '/account/plans'
+      preLoaderRoute: typeof AccountPlansRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/tracker': {
+      id: '/account/tracker'
+      path: '/tracker'
+      fullPath: '/account/tracker'
+      preLoaderRoute: typeof AccountTrackerRouteImport
+      parentRoute: typeof AccountRoute
+    }
     '/meal/$id': {
       id: '/meal/$id'
       path: '/meal/$id'
@@ -215,8 +309,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AccountRouteChildren {
+  AccountOrdersRoute: typeof AccountOrdersRoute
+  AccountPlansRoute: typeof AccountPlansRoute
+  AccountTrackerRoute: typeof AccountTrackerRoute
+  AccountIndexRoute: typeof AccountIndexRoute
+}
+
+const AccountRouteChildren: AccountRouteChildren = {
+  AccountOrdersRoute: AccountOrdersRoute,
+  AccountPlansRoute: AccountPlansRoute,
+  AccountTrackerRoute: AccountTrackerRoute,
+  AccountIndexRoute: AccountIndexRoute,
+}
+
+const AccountRouteWithChildren =
+  AccountRoute._addFileChildren(AccountRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRouteWithChildren,
   AdminRoute: AdminRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,

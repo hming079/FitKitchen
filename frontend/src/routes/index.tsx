@@ -230,7 +230,7 @@ function HomePage() {
           <Link to="/nutrition" className="py-2 hover:text-coral">
             Nutrition
           </Link>
-          <Link to="/dashboard" className="py-2 hover:text-coral">
+          <Link to="/account/tracker" className="py-2 hover:text-coral">
             Your fuel tracker <ArrowRight className="inline size-3.5" aria-hidden />
           </Link>
         </nav>
