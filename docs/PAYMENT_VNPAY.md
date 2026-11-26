@@ -115,6 +115,7 @@ The script reads the attempt amount from the configured database and the secret 
 
 - **No rate limit on `POST /api/payments/vnpay`.** The existing `createRateLimiter` in `backend/src/middleware/security.js` returns a message written for login attempts, so it was not reused here.
 - **Refunds are manual.** There is no refund status or VNPay refund API call. Duplicate payments and payments for cancelled orders are only logged; an Admin can still cancel a paid `PENDING` order, which also needs a manual refund.
+- **Abandoned online orders are not cancelled automatically.** An ONLINE order whose payment is never completed stays `PENDING` with `payment_status` `PENDING` or `FAILED` until the customer pays, cancels it, or an Admin cancels it. Unpaid ONLINE orders cannot move to `PREPARING`, so they do not reach the kitchen.
 - **Return result is display only.** `result` in the redirect comes from the signed browser return; the authoritative state is the IPN-updated order.
 - **`vnp_IpAddr`** uses `req.ip`. The app does not enable `trust proxy`, so behind a tunnel or proxy it is the proxy's address.
 - **Scope.** Subscription checkout still supports COD only, and the storefront payment UI is not implemented yet.
