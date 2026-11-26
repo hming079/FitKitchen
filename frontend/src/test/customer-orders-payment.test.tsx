@@ -86,9 +86,12 @@ describe("customer orders payment", () => {
       }),
     );
     renderOrders();
-    expect(await screen.findByText(/VNPay payment failed/)).toBeInTheDocument();
-    expect(screen.getByText(/Paid with VNPay/)).toBeInTheDocument();
+    // Online orders show a payment badge; COD keeps the plain-text method.
+    expect(await screen.findByText("Payment failed")).toHaveClass("bg-destructive");
+    expect(screen.getByText("Paid")).toHaveClass("text-success");
     expect(screen.getByText(/Cash on delivery/)).toBeInTheDocument();
+    expect(screen.getAllByText(/· VNPay/)).toHaveLength(2);
+    expect(screen.queryByText("Payment pending")).not.toBeInTheDocument();
 
     expect(screen.getAllByRole("button", { name: /^Pay now/ })).toHaveLength(1);
     const pay = screen.getByRole("button", { name: "Pay now for order 7" });
@@ -137,7 +140,8 @@ describe("customer orders payment", () => {
     renderOrders();
     fireEvent.click(await screen.findByRole("button", { name: "View details for order 6" }));
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findByText("Paid with VNPay")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Paid")).toHaveClass("text-success");
+    expect(within(dialog).getByText("VNPay")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Cancel order" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Pay now/ })).not.toBeInTheDocument();
   });

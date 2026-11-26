@@ -39,11 +39,32 @@ function humanStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
 }
 
-function paymentText(order: Pick<Order, "payment_method" | "payment_status">) {
-  if (order.payment_method !== "ONLINE") return "Cash on delivery";
-  if (order.payment_status === "PAID") return "Paid with VNPay";
-  if (order.payment_status === "FAILED") return "VNPay payment failed";
-  return "VNPay payment pending";
+type PaymentFields = Pick<Order, "payment_method" | "payment_status">;
+
+function paymentMethodText(order: PaymentFields) {
+  return order.payment_method === "ONLINE" ? "VNPay" : "Cash on delivery";
+}
+
+// Online payment state is a status worth scanning, so it is a badge; COD stays plain text.
+function PaymentBadge({ order, className }: { order: PaymentFields; className?: string }) {
+  if (order.payment_method !== "ONLINE") return null;
+  if (order.payment_status === "PAID")
+    return (
+      <Badge variant="success" className={className}>
+        Paid
+      </Badge>
+    );
+  if (order.payment_status === "FAILED")
+    return (
+      <Badge variant="destructive" className={className}>
+        Payment failed
+      </Badge>
+    );
+  return (
+    <Badge variant="warning" className={className}>
+      Payment pending
+    </Badge>
+  );
 }
 
 function statusVariant(status: string) {
@@ -165,10 +186,11 @@ export function CustomerOrders() {
                   <Badge variant={statusVariant(item.status)} className="ml-2 align-middle">
                     {humanStatus(item.status)}
                   </Badge>
+                  <PaymentBadge order={item} className="ml-2 align-middle" />
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Delivery {dates.format(new Date(`${item.delivery_date}T00:00:00Z`))} ·{" "}
-                  {paymentText(item)}
+                  {paymentMethodText(item)}
                 </p>
                 {item.items_summary && (
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
@@ -312,7 +334,10 @@ function OrderDetails({ order }: { order: Order }) {
         </div>
         <div>
           <dt className="text-muted-foreground">Payment</dt>
-          <dd className="mt-1 font-medium">{paymentText(order)}</dd>
+          <dd className="mt-1 flex flex-wrap items-center gap-2 font-medium">
+            {paymentMethodText(order)}
+            <PaymentBadge order={order} />
+          </dd>
         </div>
       </dl>
       <section aria-label="Ordered meals">
