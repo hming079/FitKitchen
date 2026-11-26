@@ -46,19 +46,21 @@ export function StoreHeader() {
 
   const links = [
     ...catalogLinks,
-    signedIn ? { to: "/dashboard", label: "Account" } : { to: "/login", label: "Sign in" },
+    signedIn ? { to: "/account", label: "Account" } : { to: "/login", label: "Sign in" },
   ] as const;
   const navigation = links.map(({ to, label }) => {
     const current = pathname === to;
-    const inMenu = to === "/menu" && pathname.startsWith("/meal/");
+    const inSection =
+      (to === "/menu" && pathname.startsWith("/meal/")) ||
+      (to === "/account" && pathname.startsWith("/account/"));
     return (
       <Link
         key={to}
         to={to}
         activeOptions={{ exact: true, includeSearch: false, includeHash: false }}
-        aria-current={current ? "page" : inMenu ? "location" : undefined}
+        aria-current={current ? "page" : inSection ? "location" : undefined}
         onClick={() => setMenuOpen(false)}
-        className={`inline-flex min-h-11 items-center rounded-sm text-sm font-semibold transition-colors hover:text-coral ${current || inMenu ? "text-foreground underline underline-offset-4" : "text-muted-foreground"}`}
+        className={`inline-flex min-h-11 items-center rounded-sm text-sm font-semibold transition-colors hover:text-coral ${current || inSection ? "text-foreground underline underline-offset-4" : "text-muted-foreground"}`}
       >
         {label}
       </Link>

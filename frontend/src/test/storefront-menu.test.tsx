@@ -378,6 +378,10 @@ it("links the homepage hero, goal cards, featured meals and plan summary to thei
   expect(featured.getAllByRole("article")).toHaveLength(4);
   expect(screen.getByRole("region", { name: "Meal plans" })).toHaveAttribute("id", "plans");
   expect(screen.getByRole("link", { name: "Compare plans" })).toHaveAttribute("href", "/plans");
+  expect(screen.getByRole("link", { name: "Your fuel tracker" })).toHaveAttribute(
+    "href",
+    "/account/tracker",
+  );
 });
 
 it("opens mobile navigation, marks the current page and swaps Sign in for Account", async () => {
@@ -397,10 +401,7 @@ it("opens mobile navigation, marks the current page and swaps Sign in for Accoun
   act(() => setAccessToken("customer-token"));
   fireEvent.click(trigger);
   const signedInSheet = within(await screen.findByRole("dialog", { name: "Navigation" }));
-  expect(signedInSheet.getByRole("link", { name: "Account" })).toHaveAttribute(
-    "href",
-    "/dashboard",
-  );
+  expect(signedInSheet.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
   fireEvent.click(signedInSheet.getByRole("link", { name: "Menu" }));
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull());
 });
