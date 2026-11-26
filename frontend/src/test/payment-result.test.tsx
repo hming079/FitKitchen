@@ -146,6 +146,11 @@ describe("PaymentResult", () => {
     renderResult("6");
     const confirmation = (await screen.findByText("Payment received")).closest("[role=status]");
     expect(confirmation).toHaveTextContent(/65\.000/);
+    // /dashboard now redirects to /account/plans; orders live at /account/orders.
+    expect(screen.getByRole("link", { name: "View your orders" })).toHaveAttribute(
+      "href",
+      "/account/orders",
+    );
     expect(confirmation).toHaveTextContent(
       /kitchen confirms your order, then it goes out for delivery/,
     );

@@ -128,7 +128,7 @@ export function PaymentResult({
   );
   const ordersLink = (
     <Button asChild variant="outline" className="min-h-11">
-      <Link to="/dashboard">View your orders</Link>
+      <Link to="/account/orders">View your orders</Link>
     </Button>
   );
   const summarySection = (
