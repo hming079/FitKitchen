@@ -14,13 +14,13 @@ The order `status` stays `PENDING` after payment. An Admin confirms it as usual;
 
 ## Endpoints
 
-| Method | Path                            | Auth          | Purpose                                                                                     |
-| ------ | ------------------------------- | ------------- | ------------------------------------------------------------------------------------------- |
-| POST   | `/api/orders/checkout`          | CUSTOMER      | Existing checkout. With `ONLINE`, adds `payment: { provider: "VNPAY", redirect_url }`       |
-| POST   | `/api/payments/vnpay`           | CUSTOMER      | Body `{ "order_id": "42" }`. Returns a payment URL for the customer's own ONLINE order      |
-| GET    | `/api/payments/vnpay/ipn`       | None (VNPay)  | Verifies the signature, updates the attempt and order, answers `{ RspCode, Message }`       |
-| GET    | `/api/payments/vnpay/return`    | None          | Verifies the signature and redirects (302) to `PAYMENT_RESULT_URL`; never writes            |
-| GET    | `/api/payments/orders/:orderId` | CUSTOMER      | Order and payment state, latest attempt, and `can_retry`                                    |
+| Method | Path                            | Auth         | Purpose                                                                                |
+| ------ | ------------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| POST   | `/api/orders/checkout`          | CUSTOMER     | Existing checkout. With `ONLINE`, adds `payment: { provider: "VNPAY", redirect_url }`  |
+| POST   | `/api/payments/vnpay`           | CUSTOMER     | Body `{ "order_id": "42" }`. Returns a payment URL for the customer's own ONLINE order |
+| GET    | `/api/payments/vnpay/ipn`       | None (VNPay) | Verifies the signature, updates the attempt and order, answers `{ RspCode, Message }`  |
+| GET    | `/api/payments/vnpay/return`    | None         | Verifies the signature and redirects (302) to `PAYMENT_RESULT_URL`; never writes       |
+| GET    | `/api/payments/orders/:orderId` | CUSTOMER     | Order and payment state, latest attempt, and `can_retry`                               |
 
 `POST /api/payments/vnpay` accepts orders with `payment_method = ONLINE`, `status = PENDING` and `payment_status` `PENDING` or `FAILED`. Other orders return `409 PAYMENT_NOT_ALLOWED`; orders of another customer return `404 ORDER_NOT_FOUND`. If the URL cannot be created during checkout, the order is still created and `redirect_url` is `null`; the customer retries with this endpoint.
 
@@ -33,13 +33,13 @@ Related order rules:
 
 Set these in `backend/.env` (see `backend/.env.example`). All five are required for online payment; when any is missing or malformed, `POST /api/payments/vnpay` and the return endpoint answer `503 PAYMENT_NOT_CONFIGURED`, the IPN answers `99`, ONLINE checkout returns `redirect_url: null`, and COD keeps working.
 
-| Variable             | Example / purpose                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `VNP_TMN_CODE`       | Terminal code (`vnp_TmnCode`) from the sandbox merchant registration                 |
-| `VNP_HASH_SECRET`    | Hash secret used for HMAC-SHA512; never commit it or expose it to the frontend       |
-| `VNP_URL`            | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`                                 |
-| `VNP_RETURN_URL`     | `http://localhost:3000/api/payments/vnpay/return`                                    |
-| `PAYMENT_RESULT_URL` | `http://localhost:5173/payment/result`; the only destination of the return redirect  |
+| Variable             | Example / purpose                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `VNP_TMN_CODE`       | Terminal code (`vnp_TmnCode`) from the sandbox merchant registration                |
+| `VNP_HASH_SECRET`    | Hash secret used for HMAC-SHA512; never commit it or expose it to the frontend      |
+| `VNP_URL`            | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`                                |
+| `VNP_RETURN_URL`     | `http://localhost:3000/api/payments/vnpay/return`                                   |
+| `PAYMENT_RESULT_URL` | `http://localhost:5173/payment/result`; the only destination of the return redirect |
 
 Register for sandbox credentials at <https://sandbox.vnpayment.vn/devreg/>. The IPN URL is configured in the sandbox merchant portal, not in this application.
 
@@ -62,14 +62,14 @@ The backend signs and verifies with HMAC-SHA512 over all `vnp_*` parameters exce
 
 The IPN always answers HTTP 200 with JSON. Checks run in this order inside one database transaction with row locks (order, then attempt), so repeated or concurrent notifications take effect once.
 
-| RspCode | Message                 | When                                                                                    |
-| ------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| `97`    | Invalid Checksum        | Missing or wrong `vnp_SecureHash`                                                       |
-| `01`    | Order not found         | No attempt with this `vnp_TxnRef`                                                       |
-| `04`    | Invalid amount          | `vnp_Amount` differs from the stored attempt amount                                     |
-| `02`    | Order already confirmed | The attempt is no longer `PENDING`, or the order is already `PAID`                      |
+| RspCode | Message                 | When                                                                                       |
+| ------- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| `97`    | Invalid Checksum        | Missing or wrong `vnp_SecureHash`                                                          |
+| `01`    | Order not found         | No attempt with this `vnp_TxnRef`                                                          |
+| `04`    | Invalid amount          | `vnp_Amount` differs from the stored attempt amount                                        |
+| `02`    | Order already confirmed | The attempt is no longer `PENDING`, or the order is already `PAID`                         |
 | `00`    | Confirm Success         | Recorded. `vnp_ResponseCode = 00` and `vnp_TransactionStatus = 00` → `PAID`, else `FAILED` |
-| `99`    | Unknown error           | Unexpected failure or missing configuration; only a sanitized error code is logged      |
+| `99`    | Unknown error           | Unexpected failure or missing configuration; only a sanitized error code is logged         |
 
 When an older attempt reports a payment after the order was already paid, the attempt is recorded, the IPN answers `02`, and a warning asks for a manual refund. A payment received for a cancelled order is recorded as `PAID` with the same warning.
 
