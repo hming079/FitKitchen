@@ -1,13 +1,21 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import { MenuMealCard } from "@/components/menu-meal-card";
 import { goalLabels } from "@/components/menu/meal-display";
 import { getLocalMealImage, MenuMealImage } from "@/components/menu/meal-image";
 import { MealPreview } from "@/components/menu/meal-preview";
 import { StoreHeader } from "@/components/store-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { menuApi, MenuApiError } from "@/lib/menu-api";
 
@@ -44,16 +52,36 @@ export const Route = createFileRoute("/meal/$id")({
   component: MealPage,
 });
 
-function DetailLayout({ children }: { children: ReactNode }) {
+function DetailLayout({
+  children,
+  mealName,
+}: {
+  children: ReactNode;
+  mealName?: string | undefined;
+}) {
   return (
     <div className="min-h-screen bg-background">
       <StoreHeader />
-      <main className="mx-auto max-w-[1240px] px-5 pb-16 pt-4 sm:px-8 lg:px-12">
-        <Button asChild variant="ghost" className="-ml-3 min-h-11">
-          <Link to="/" hash="menu">
-            <ArrowLeft className="size-4" aria-hidden /> Back to the menu
-          </Link>
-        </Button>
+      <main className="mx-auto max-w-[1240px] px-5 pb-32 pt-4 sm:px-8 sm:pb-16 lg:px-12">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/menu" className="flex min-h-11 items-center font-semibold">
+                  Menu
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            {mealName && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage className="[overflow-wrap:anywhere]">{mealName}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
         {children}
       </main>
     </div>
@@ -83,9 +111,18 @@ function MealPage() {
     retry: false,
   });
   const category = categories.data?.data.find(({ id }) => id === meal?.category_id);
+  const goal = meal?.goal_type;
+  const relatedFilters = { goal_type: goal ?? undefined };
+  const related = useQuery({
+    queryKey: ["menu", "meals", relatedFilters, 1],
+    queryFn: ({ signal }) => menuApi.listMeals(relatedFilters, 1, signal),
+    enabled: Boolean(goal),
+    retry: false,
+  });
+  const moreMeals = related.data?.data.filter(({ id }) => id !== meal?.id).slice(0, 4) ?? [];
 
   return (
-    <DetailLayout>
+    <DetailLayout mealName={meal?.name}>
       {meal ? (
         <article className="mt-4 grid items-start gap-6 lg:grid-cols-2 lg:gap-10">
           <MenuMealImage
@@ -129,6 +166,18 @@ function MealPage() {
         </article>
       ) : (
         <h1 className="py-16 text-center font-display text-2xl font-semibold">Meal not found.</h1>
+      )}
+      {goal && moreMeals.length > 0 && (
+        <section aria-labelledby="related-meals" className="mt-12">
+          <h2 id="related-meals" className="mb-5 font-display text-2xl font-bold">
+            More {goalLabels[goal]} meals
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {moreMeals.map((meal) => (
+              <MenuMealCard key={meal.id} meal={meal} />
+            ))}
+          </div>
+        </section>
       )}
     </DetailLayout>
   );

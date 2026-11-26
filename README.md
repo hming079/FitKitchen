@@ -95,6 +95,7 @@ The database is exposed on host port **5433**, not 5432. Compose credentials are
 
 - A new empty volume runs `db/init` SQL automatically.
 - Existing volumes do not rerun initialization when SQL files change. Use `npm run db:migrate` to retain existing records.
+- Run `npm run catalog:seed` after migrating an existing local database to add the sample catalog. Fresh volumes include it automatically.
 - The current migration is transactional and repeatable; the script does not yet track migration versions automatically.
 - Do not delete the database volume to apply migrations.
 
